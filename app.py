@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
+import re
 
 # --- 1. PAGE SETUP ---
 st.set_page_config(page_title="Bank Automator Pro", layout="wide")
@@ -21,10 +22,9 @@ if 'proj_rules' not in st.session_state:
         {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}
     ]
 
-# --- 3. SIDEBAR: RULE MANAGER (Minimizable) ---
+# --- 3. SIDEBAR: RULE MANAGER ---
 with st.sidebar:
     st.header("⚙️ Rule Manager")
-    st.info("Edit rules here. These will be applied when you upload the file.")
     
     st.subheader("Categories")
     for i, rule in enumerate(st.session_state.cat_rules):
@@ -51,6 +51,13 @@ with st.sidebar:
         st.rerun()
 
 # --- 4. PROCESSING LOGIC ---
+def clean_partner_name(text):
+    if pd.isna(text) or text == "":
+        return ""
+    # Splitting by the '|' character and taking the first part (the name)
+    name_part = str(text).split('|')[0].strip()
+    return name_part
+
 def classify(text, rules_list):
     if pd.isna(text): return ""
     text = str(text).lower()
@@ -66,6 +73,13 @@ def process_data(file):
     df.columns = ['Account', 'TypeCode', 'Date', 'Partner', 'Purpose', 'Amount', 
                   'Currency', 'Sign', 'ID', 'Code', 'Extra1', 'Extra2']
     
+    # Filter out Balance/Turnover rows (TypeCode 10 and 82/86)
+    df = df[~df['Purpose'].str.contains('Opening balance|Turnover|Closing balance', case=False, na=False)]
+    
+    # Clean Partner Column to show ONLY Name and Surname
+    df['Partner'] = df['Partner'].apply(clean_partner_name)
+    
+    # Matching logic
     search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
     df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
     df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
@@ -73,7 +87,6 @@ def process_data(file):
     
     output_cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
     
-    # Split by Sign: K = Credit (Income), D = Debit (Expense)
     credit_df = df[df['Sign'] == 'K'][output_cols]
     debit_df = df[df['Sign'] == 'D'][output_cols]
     
@@ -89,13 +102,12 @@ if uploaded_file:
     
     col_a, col_b = st.columns(2)
     with col_a:
-        st.subheader("Credit (Income) Preview")
-        st.dataframe(credit_df.head(10))
+        st.subheader("Credit (Income)")
+        st.dataframe(credit_df)
     with col_b:
-        st.subheader("Debit (Expense) Preview")
-        st.dataframe(debit_df.head(10))
+        st.subheader("Debit (Expense)")
+        st.dataframe(debit_df)
     
-    # Download as Dual-Sheet Excel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         credit_df.to_excel(writer, index=False, sheet_name='Credit')
@@ -104,6 +116,6 @@ if uploaded_file:
     st.download_button(
         label="📥 Download Split Sheets Excel",
         data=output.getvalue(),
-        file_name=f"Split_Report_{uploaded_file.name.replace('.csv', '.xlsx')}",
+        file_name=f"Report_{uploaded_file.name.replace('.csv', '.xlsx')}",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )

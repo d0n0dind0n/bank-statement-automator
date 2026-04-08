@@ -75,7 +75,7 @@ if 'cat_rules' not in st.session_state:
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
         {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
-        {'name': 'NVA', 'keywords': 'NVA, 8.3-8.1', 'active': True}
+        {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1, Līgums', 'active': True}
     ]
 
 # --- 3. SIDEBAR ---
@@ -83,10 +83,11 @@ with st.sidebar:
     selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
     t = LANGUAGES[selected_lang]
     if st.button(t["reset"]):
-        st.cache_data.clear()
+        st.session_state.clear()
         st.rerun()
     st.divider()
     st.header(t["rule_manager"])
+    
     st.subheader(t["cat_header"])
     for i, rule in enumerate(st.session_state.cat_rules):
         with st.expander(f"{rule['name'] or '...'}"):
@@ -97,13 +98,23 @@ with st.sidebar:
         st.session_state.cat_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
 
+    st.subheader(t["proj_header"])
+    for i, rule in enumerate(st.session_state.proj_rules):
+        with st.expander(f"{rule['name'] or '...'}"):
+            rule['active'] = st.checkbox(t["active"], value=rule['active'], key=f"p_on_{i}")
+            rule['name'] = st.text_input(t["name"], value=rule['name'], key=f"p_n_{i}")
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}")
+    if st.button(t["add_proj"]):
+        st.session_state.proj_rules.append({'name': '', 'keywords': '', 'active': True})
+        st.rerun()
+
 # --- 4. MAIN APP ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
 def clean_name(text):
     if pd.isna(text) or text == "": return ""
-    return str(text).split('|')[0].strip()
+    return str(text).split('|')[0].strip() if '|' in str(text) else str(text).strip()
 
 def classify(text, rules):
     text = str(text).lower()
@@ -115,23 +126,26 @@ def classify(text, rules):
 
 if uploaded_file is not None:
     try:
-        # Using on_bad_lines='skip' to avoid the ParserError if a line is formatted weirdly
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         
-        # We handle files with different column counts dynamically
-        num_cols = len(df.columns)
-        col_names = ['Account', 'Type', 'Date', 'Partner', 'Purpose', 'Amount', 'Currency', 'Sign', 'ID', 'Code', 'Extra1', 'Extra2']
-        df.columns = col_names[:num_cols]
+        # Explicit mapping for your bank's CSV structure
+        # Col 0: Account, Col 2: Date, Col 3: Partner, Col 4: Purpose, Col 5: Amount, Col 7: Sign
+        df.rename(columns={0:'Account', 2:'Date', 3:'Partner', 4:'Purpose', 5:'Amount', 7:'Sign'}, inplace=True)
         
-        # Processing
+        # Clean Partner and Search string
         df['Partner'] = df['Partner'].apply(clean_name)
-        combined = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
-        df['Category'] = combined.apply(lambda x: classify(x, st.session_state.cat_rules))
-        df['Project Name'] = combined.apply(lambda x: classify(x, st.session_state.proj_rules))
+        # Search combined Partner + Purpose
+        search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
+        
+        # Categorize
+        df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
+        df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
         df['Commentary'] = ""
         
+        # Output columns selection
         cols_to_show = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-        # Filter out balance rows
+        
+        # Remove Balances
         df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums|Apgrozījums', case=False, na=False)]
         
         credit = df[df['Sign'] == 'K'][cols_to_show]
@@ -149,4 +163,4 @@ if uploaded_file is not None:
         
         st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")
     except Exception as e:
-        st.error(f"Error processing file: {e}")
+        st.error(f"Error: {e}")

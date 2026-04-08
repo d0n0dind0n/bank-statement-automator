@@ -1,62 +1,100 @@
 import streamlit as st
 import pandas as pd
 import io
-import re
 
-# --- 1. PAGE SETUP ---
+# --- 1. LANGUAGE DICTIONARY ---
+LANGUAGES = {
+    "English": {
+        "title": "🏦 Bank Statement Automator",
+        "upload_label": "Upload Bank CSV",
+        "rule_manager": "⚙️ Rule Manager",
+        "cat_header": "Categories",
+        "proj_header": "Projects",
+        "add_cat": "➕ Add Category",
+        "add_proj": "➕ Add Project",
+        "active": "Active",
+        "name": "Name",
+        "keywords": "Keywords",
+        "success": "Processed: {} Income entries and {} Expense entries.",
+        "credit_title": "Credit (Income)",
+        "debit_title": "Debit (Expense)",
+        "download_btn": "📥 Download Split Sheets Excel",
+        "lang_label": "Select Language / Izvēlēties valodu"
+    },
+    "Latviešu": {
+        "title": "🏦 Bankas izrakstu automatizācija",
+        "upload_label": "Augšupielādēt bankas CSV",
+        "rule_manager": "⚙️ Noteikumu vadība",
+        "cat_header": "Kategorijas",
+        "proj_header": "Projekti",
+        "add_cat": "➕ Pievienot kategoriju",
+        "add_proj": "➕ Pievienot projektu",
+        "active": "Aktīvs",
+        "name": "Nosaukums",
+        "keywords": "Atslēgvārdi",
+        "success": "Apstrādāts: {} ienākumu ieraksti un {} izdevumu ieraksti.",
+        "credit_title": "Kredīts (Ienākumi)",
+        "debit_title": "Debets (Izdevumi)",
+        "download_btn": "📥 Lejupielādēt Excel failu",
+        "lang_label": "Izvēlēties valodu / Select Language"
+    }
+}
+
+# --- 2. PAGE SETUP ---
 st.set_page_config(page_title="Bank Automator Pro", layout="wide")
 
-st.title("🏦 Bank Statement Automator")
+# Language Selector in Sidebar
+with st.sidebar:
+    selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
+    t = LANGUAGES[selected_lang]
 
-# --- 2. SESSION STATE (Rule Persistence) ---
+st.title(t["title"])
+
+# --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
         {'name': 'Membership Fees', 'keywords': 'dalības maksa, biedru nauda', 'active': True},
-        {'name': 'Donations', 'keywords': 'ziedojums, donation', 'active': True},
-        {'name': 'Bank Fees', 'keywords': 'komisija, apkalpošanas maksa', 'active': True}
+        {'name': 'Donations', 'keywords': 'ziedojums, donation', 'active': True}
     ]
 
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
-        {'name': 'NVA Project', 'keywords': 'NVA-20, 8.3-8.1', 'active': True},
-        {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}
+        {'name': 'NVA Project', 'keywords': 'NVA-20, 8.3-8.1', 'active': True}
     ]
 
-# --- 3. SIDEBAR: RULE MANAGER ---
+# --- 4. SIDEBAR: RULE MANAGER ---
 with st.sidebar:
-    st.header("⚙️ Rule Manager")
+    st.divider()
+    st.header(t["rule_manager"])
     
-    st.subheader("Categories")
+    st.subheader(t["cat_header"])
     for i, rule in enumerate(st.session_state.cat_rules):
-        with st.expander(f"Category: {rule['name'] if rule['name'] else 'New'}", expanded=False):
-            rule['active'] = st.checkbox("Active", value=rule['active'], key=f"cat_on_{i}")
-            rule['name'] = st.text_input("Name", value=rule['name'], key=f"cat_name_{i}")
-            rule['keywords'] = st.text_area("Keywords", value=rule['keywords'], key=f"cat_key_{i}")
+        with st.expander(f"{rule['name'] if rule['name'] else '...'}", expanded=False):
+            rule['active'] = st.checkbox(t["active"], value=rule['active'], key=f"cat_on_{i}")
+            rule['name'] = st.text_input(t["name"], value=rule['name'], key=f"cat_name_{i}")
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_key_{i}")
     
-    if st.button("➕ Add Category"):
+    if st.button(t["add_cat"]):
         st.session_state.cat_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
 
     st.divider()
     
-    st.subheader("Projects")
+    st.subheader(t["proj_header"])
     for i, rule in enumerate(st.session_state.proj_rules):
-        with st.expander(f"Project: {rule['name'] if rule['name'] else 'New'}", expanded=False):
-            rule['active'] = st.checkbox("Active", value=rule['active'], key=f"proj_on_{i}")
-            rule['name'] = st.text_input("Name", value=rule['name'], key=f"proj_name_{i}")
-            rule['keywords'] = st.text_area("Keywords", value=rule['keywords'], key=f"proj_key_{i}")
+        with st.expander(f"{rule['name'] if rule['name'] else '...'}", expanded=False):
+            rule['active'] = st.checkbox(t["active"], value=rule['active'], key=f"proj_on_{i}")
+            rule['name'] = st.text_input(t["name"], value=rule['name'], key=f"proj_name_{i}")
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"proj_key_{i}")
             
-    if st.button("➕ Add Project"):
+    if st.button(t["add_proj"]):
         st.session_state.proj_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
 
-# --- 4. PROCESSING LOGIC ---
+# --- 5. PROCESSING LOGIC ---
 def clean_partner_name(text):
-    if pd.isna(text) or text == "":
-        return ""
-    # Splitting by the '|' character and taking the first part (the name)
-    name_part = str(text).split('|')[0].strip()
-    return name_part
+    if pd.isna(text) or text == "": return ""
+    return str(text).split('|')[0].strip()
 
 def classify(text, rules_list):
     if pd.isna(text): return ""
@@ -73,13 +111,9 @@ def process_data(file):
     df.columns = ['Account', 'TypeCode', 'Date', 'Partner', 'Purpose', 'Amount', 
                   'Currency', 'Sign', 'ID', 'Code', 'Extra1', 'Extra2']
     
-    # Filter out Balance/Turnover rows (TypeCode 10 and 82/86)
     df = df[~df['Purpose'].str.contains('Opening balance|Turnover|Closing balance', case=False, na=False)]
-    
-    # Clean Partner Column to show ONLY Name and Surname
     df['Partner'] = df['Partner'].apply(clean_partner_name)
     
-    # Matching logic
     search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
     df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
     df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
@@ -87,25 +121,21 @@ def process_data(file):
     
     output_cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
     
-    credit_df = df[df['Sign'] == 'K'][output_cols]
-    debit_df = df[df['Sign'] == 'D'][output_cols]
-    
-    return credit_df, debit_df
+    return df[df['Sign'] == 'K'][output_cols], df[df['Sign'] == 'D'][output_cols]
 
-# --- 5. MAIN INTERFACE ---
-uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
+# --- 6. MAIN INTERFACE ---
+uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
 if uploaded_file:
     credit_df, debit_df = process_data(uploaded_file)
-    
-    st.success(f"Processed: {len(credit_df)} Income entries and {len(debit_df)} Expense entries.")
+    st.success(t["success"].format(len(credit_df), len(debit_df)))
     
     col_a, col_b = st.columns(2)
     with col_a:
-        st.subheader("Credit (Income)")
+        st.subheader(t["credit_title"])
         st.dataframe(credit_df)
     with col_b:
-        st.subheader("Debit (Expense)")
+        st.subheader(t["debit_title"])
         st.dataframe(debit_df)
     
     output = io.BytesIO()
@@ -114,7 +144,7 @@ if uploaded_file:
         debit_df.to_excel(writer, index=False, sheet_name='Debit')
     
     st.download_button(
-        label="📥 Download Split Sheets Excel",
+        label=t["download_btn"],
         data=output.getvalue(),
         file_name=f"Report_{uploaded_file.name.replace('.csv', '.xlsx')}",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

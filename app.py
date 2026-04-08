@@ -16,6 +16,8 @@ LANGUAGES = {
         "name": "Name",
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
+        "credit_title": "Credit (Income)",
+        "debit_title": "Debit (Expense)",
         "download_btn": "📥 Download Excel",
         "reset": "♻️ Reset App"
     },
@@ -31,6 +33,8 @@ LANGUAGES = {
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
+        "credit_title": "Kredīts (Ienākumi)",
+        "debit_title": "Debets (Izdevumi)",
         "download_btn": "📥 Lejupielādēt Excel",
         "reset": "♻️ Atiestatīt"
     },
@@ -46,6 +50,8 @@ LANGUAGES = {
         "name": "Название",
         "keywords": "Ключевые слова",
         "success": "Обработано: {} доходов и {} расходов",
+        "credit_title": "Кредит (Доходы)",
+        "debit_title": "Дебет (Расходы)",
         "download_btn": "📥 Скачать Excel",
         "reset": "♻️ Сбросить"
     }
@@ -54,7 +60,6 @@ LANGUAGES = {
 # --- 2. CONFIG & SESSION STATE ---
 st.set_page_config(page_title="Bank Automator", layout="wide")
 
-# Initialize Session State with your provided categories
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
         {'name': 'Transport & Mobility', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
@@ -77,41 +82,23 @@ if 'proj_rules' not in st.session_state:
 with st.sidebar:
     selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
     t = LANGUAGES[selected_lang]
-    
     if st.button(t["reset"]):
         st.cache_data.clear()
         st.rerun()
-    
     st.divider()
     st.header(t["rule_manager"])
-    
-    # Category Management
     st.subheader(t["cat_header"])
     for i, rule in enumerate(st.session_state.cat_rules):
-        with st.expander(f"{rule['name'] if rule['name'] else '...'}"):
+        with st.expander(f"{rule['name'] or '...'}"):
             rule['active'] = st.checkbox(t["active"], value=rule['active'], key=f"c_on_{i}")
             rule['name'] = st.text_input(t["name"], value=rule['name'], key=f"c_n_{i}")
             rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}")
-    
     if st.button(t["add_cat"]):
         st.session_state.cat_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
 
-    # Project Management
-    st.subheader(t["proj_header"])
-    for i, rule in enumerate(st.session_state.proj_rules):
-        with st.expander(f"{rule['name'] if rule['name'] else '...'}"):
-            rule['active'] = st.checkbox(t["active"], value=rule['active'], key=f"p_on_{i}")
-            rule['name'] = st.text_input(t["name"], value=rule['name'], key=f"p_n_{i}")
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}")
-    
-    if st.button(t["add_proj"]):
-        st.session_state.proj_rules.append({'name': '', 'keywords': '', 'active': True})
-        st.rerun()
-
 # --- 4. MAIN APP ---
 st.title(t["title"])
-
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
 def clean_name(text):
@@ -123,42 +110,43 @@ def classify(text, rules):
     for r in rules:
         if r['active'] and r['keywords']:
             keys = [k.strip().lower() for k in r['keywords'].split(',')]
-            if any(k in text for k in keys if k):
-                return r['name']
+            if any(k in text for k in keys if k): return r['name']
     return ""
 
 if uploaded_file is not None:
-    # Load data
-    df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8')
-    df.columns = ['Account', 'Date', 'ValDate', 'Partner', 'Purpose', 'Amount', 'Currency', 'Sign', 'ID', 'Code', 'E1', 'E2']
-    
-    # Data Cleaning
-    df['Partner'] = df['Partner'].apply(clean_name)
-    combined = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
-    
-    # Categorization
-    df['Category'] = combined.apply(lambda x: classify(x, st.session_state.cat_rules))
-    df['Project Name'] = combined.apply(lambda x: classify(x, st.session_state.proj_rules))
-    df['Commentary'] = ""
-    
-    # Select columns and filter by Credit/Debit
-    cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-    credit = df[df['Sign'] == 'K'][cols]
-    debit = df[df['Sign'] == 'D'][cols]
-    
-    # UI Output
-    st.success(t["success"].format(len(credit), len(debit)))
-    
-    tab1, tab2 = st.tabs([t["credit_title"], t["debit_title"]])
-    with tab1:
-        st.dataframe(credit, use_container_width=True)
-    with tab2:
-        st.dataframe(debit, use_container_width=True)
+    try:
+        # Using on_bad_lines='skip' to avoid the ParserError if a line is formatted weirdly
+        df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
+        
+        # We handle files with different column counts dynamically
+        num_cols = len(df.columns)
+        col_names = ['Account', 'Type', 'Date', 'Partner', 'Purpose', 'Amount', 'Currency', 'Sign', 'ID', 'Code', 'Extra1', 'Extra2']
+        df.columns = col_names[:num_cols]
+        
+        # Processing
+        df['Partner'] = df['Partner'].apply(clean_name)
+        combined = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
+        df['Category'] = combined.apply(lambda x: classify(x, st.session_state.cat_rules))
+        df['Project Name'] = combined.apply(lambda x: classify(x, st.session_state.proj_rules))
+        df['Commentary'] = ""
+        
+        cols_to_show = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+        # Filter out balance rows
+        df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums|Apgrozījums', case=False, na=False)]
+        
+        credit = df[df['Sign'] == 'K'][cols_to_show]
+        debit = df[df['Sign'] == 'D'][cols_to_show]
+        
+        st.success(t["success"].format(len(credit), len(debit)))
+        tab1, tab2 = st.tabs([t["credit_title"], t["debit_title"]])
+        with tab1: st.dataframe(credit, use_container_width=True)
+        with tab2: st.dataframe(debit, use_container_width=True)
 
-    # Excel Export
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        credit.to_excel(writer, index=False, sheet_name='Credit')
-        debit.to_excel(writer, index=False, sheet_name='Debit')
-    
-    st.download_button(t["download_btn"], output.getvalue(), f"Report_{uploaded_file.name}.xlsx", "application/vnd.ms-excel")
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            credit.to_excel(writer, index=False, sheet_name='Credit')
+            debit.to_excel(writer, index=False, sheet_name='Debit')
+        
+        st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")
+    except Exception as e:
+        st.error(f"Error processing file: {e}")

@@ -95,4 +95,46 @@ with st.sidebar:
 # --- 4. MAIN APP ---
 st.title(t["title"])
 
-# The uploader is placed here so
+# The uploader is placed here so it's always visible
+uploaded_file = st.file_uploader(t["upload_label"], type="csv")
+
+# Processing Logic
+def clean_name(text):
+    if pd.isna(text) or text == "": return ""
+    return str(text).split('|')[0].strip()
+
+def classify(text, rules):
+    text = str(text).lower()
+    for r in rules:
+        if r['active'] and r['keywords']:
+            keys = [k.strip().lower() for k in r['keywords'].split(',')]
+            if any(k in text for k in keys if k): return r['name']
+    return ""
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8')
+    df.columns = ['Account', 'TypeCode', 'Date', 'Partner', 'Purpose', 'Amount', 'Currency', 'Sign', 'ID', 'Code', 'E1', 'E2']
+    
+    # Remove balances
+    df = df[~df['Purpose'].str.contains('balance|Turnover|Apgrozījums|atlikums', case=False, na=False)]
+    
+    # Process
+    df['Partner'] = df['Partner'].apply(clean_name)
+    combined = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
+    df['Category'] = combined.apply(lambda x: classify(x, st.session_state.cat_rules))
+    df['Project Name'] = combined.apply(lambda x: classify(x, st.session_state.proj_rules))
+    df['Commentary'] = ""
+    
+    cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+    credit = df[df['Sign'] == 'K'][cols]
+    debit = df[df['Sign'] == 'D'][cols]
+    
+    st.success(t["success"].format(len(credit), len(debit)))
+    st.dataframe(df[cols], use_container_width=True)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        credit.to_excel(writer, index=False, sheet_name='Credit')
+        debit.to_excel(writer, index=False, sheet_name='Debit')
+    
+    st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")

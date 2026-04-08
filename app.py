@@ -19,7 +19,6 @@ LANGUAGES = {
         "credit_title": "Credit (Income)",
         "debit_title": "Debit (Expense)",
         "download_btn": "📥 Download Split Sheets Excel",
-        "lang_label": "Select Language / Izvēlēties valodu"
     },
     "Latviešu": {
         "title": "🏦 Bankas izrakstu automatizācija",
@@ -36,7 +35,22 @@ LANGUAGES = {
         "credit_title": "Kredīts (Ienākumi)",
         "debit_title": "Debets (Izdevumi)",
         "download_btn": "📥 Lejupielādēt Excel failu",
-        "lang_label": "Izvēlēties valodu / Select Language"
+    },
+    "Русский": {
+        "title": "🏦 Автоматизация банковских выписок",
+        "upload_label": "Загрузить банковский CSV",
+        "rule_manager": "⚙️ Управление правилами",
+        "cat_header": "Категории",
+        "proj_header": "Проекты",
+        "add_cat": "➕ Добавить категорию",
+        "add_proj": "➕ Добавить проект",
+        "active": "Активен",
+        "name": "Название",
+        "keywords": "Ключевые слова",
+        "success": "Обработано: {} записей о доходах и {} записей о расходах.",
+        "credit_title": "Кредит (Доходы)",
+        "debit_title": "Дебет (Расходы)",
+        "download_btn": "📥 Скачать Excel файл",
     }
 }
 
@@ -45,7 +59,7 @@ st.set_page_config(page_title="Bank Automator Pro", layout="wide")
 
 # Language Selector in Sidebar
 with st.sidebar:
-    selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
+    selected_lang = st.selectbox("🌍 Language / Valoda / Язык", options=list(LANGUAGES.keys()))
     t = LANGUAGES[selected_lang]
 
 st.title(t["title"])
@@ -94,58 +108,4 @@ with st.sidebar:
 # --- 5. PROCESSING LOGIC ---
 def clean_partner_name(text):
     if pd.isna(text) or text == "": return ""
-    return str(text).split('|')[0].strip()
-
-def classify(text, rules_list):
-    if pd.isna(text): return ""
-    text = str(text).lower()
-    for rule in rules_list:
-        if rule['active'] and rule['keywords']:
-            keywords = [k.strip().lower() for k in rule['keywords'].split(',')]
-            if any(k in text for k in keywords if k):
-                return rule['name']
-    return ""
-
-def process_data(file):
-    df = pd.read_csv(file, sep=';', header=None)
-    df.columns = ['Account', 'TypeCode', 'Date', 'Partner', 'Purpose', 'Amount', 
-                  'Currency', 'Sign', 'ID', 'Code', 'Extra1', 'Extra2']
-    
-    df = df[~df['Purpose'].str.contains('Opening balance|Turnover|Closing balance', case=False, na=False)]
-    df['Partner'] = df['Partner'].apply(clean_partner_name)
-    
-    search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
-    df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
-    df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
-    df['Commentary'] = ""
-    
-    output_cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-    
-    return df[df['Sign'] == 'K'][output_cols], df[df['Sign'] == 'D'][output_cols]
-
-# --- 6. MAIN INTERFACE ---
-uploaded_file = st.file_uploader(t["upload_label"], type="csv")
-
-if uploaded_file:
-    credit_df, debit_df = process_data(uploaded_file)
-    st.success(t["success"].format(len(credit_df), len(debit_df)))
-    
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.subheader(t["credit_title"])
-        st.dataframe(credit_df)
-    with col_b:
-        st.subheader(t["debit_title"])
-        st.dataframe(debit_df)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        credit_df.to_excel(writer, index=False, sheet_name='Credit')
-        debit_df.to_excel(writer, index=False, sheet_name='Debit')
-    
-    st.download_button(
-        label=t["download_btn"],
-        data=output.getvalue(),
-        file_name=f"Report_{uploaded_file.name.replace('.csv', '.xlsx')}",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # Split by '|' only if it exists, otherwise return

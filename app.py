@@ -2,11 +2,41 @@ import streamlit as st
 import pandas as pd
 import io
 
-# --- 1. LANGUAGE DICTIONARY ---
+# --- 1. LANGUAGE DICTIONARY (NAMES SWAPPED) ---
 LANGUAGES = {
-    "English": {"title": "🏦 Bank Automator", "upload": "Upload CSV", "cat": "📁 CATEGORY", "proj": "📁 PROJECT", "add_rule": "➕ Add Rule", "mode": "Excel Mode", "m_sign": "By Debit/Credit", "m_proj": "By Project", "dl": "📥 Download Excel"},
-    "Latviešu": {"title": "🏦 Bankas automatizācija", "upload": "Augšupielādēt CSV", "cat": "📁 KATEGORIJA", "proj": "📁 PROJEKTS", "add_rule": "➕ Pievienot noteikumu", "mode": "Excel formāts", "m_sign": "Pa Debetu/Kredītu", "m_proj": "Pa Projektiem", "dl": "📥 Lejupielādēt"},
-    "Русский": {"title": "🏦 Автоматизация", "upload": "Загрузить CSV", "cat": "📁 КАТЕГОРИЯ", "proj": "📁 ПРОЕКТ", "add_rule": "➕ Добавить правило", "mode": "Формат Excel", "m_sign": "По Дебету/Кредиту", "m_proj": "По Проектам", "dl": "📥 Скачать Excel"}
+    "English": {
+        "title": "🏦 Bank Automator", 
+        "upload": "Upload CSV", 
+        "cat": "📁 CATEGORY", 
+        "proj": "📁 PROJECT", 
+        "add_rule": "➕ Add Rule", 
+        "mode": "Excel Mode", 
+        "m_sign": "By Project",        # Name changed to Project
+        "m_proj": "By Debit/Credit",   # Name changed to Debit/Credit
+        "dl": "📥 Download Excel"
+    },
+    "Latviešu": {
+        "title": "🏦 Bankas automatizācija", 
+        "upload": "Augšupielādēt CSV", 
+        "cat": "📁 KATEGORIJA", 
+        "proj": "📁 PROJEKTS", 
+        "add_rule": "➕ Pievienot noteikumu", 
+        "mode": "Excel formāts", 
+        "m_sign": "Pa Projektiem", 
+        "m_proj": "Pa Debetu/Kredītu", 
+        "dl": "📥 Lejupielādēt"
+    },
+    "Русский": {
+        "title": "🏦 Автоматизация", 
+        "upload": "Загрузить CSV", 
+        "cat": "📁 КАТЕГОРИЯ", 
+        "proj": "📁 ПРОЕКТ", 
+        "add_rule": "➕ Добавить правило", 
+        "mode": "Формат Excel", 
+        "m_sign": "По Проектам", 
+        "m_proj": "По Дебету/Кредиту", 
+        "dl": "📥 Скачать Excel"
+    }
 }
 
 # --- 2. CONFIG ---
@@ -109,15 +139,14 @@ if file:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["m_sign"]:
-                # PURE DEBIT/CREDIT LOGIC: Just two sheets. No project separation.
+                # LOGIC FOR "By Project" BUTTON: Pure Debit/Credit separation
                 for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == sign].copy()
                     if not subset.empty:
                         subset[cols].to_excel(writer, index=False, sheet_name=s_name)
             
             else:
-                # PROJECT LOGIC: Each project gets separate Income/Expenses sheets.
-                # 1. Assigned Projects
+                # LOGIC FOR "By Debit/Credit" BUTTON: Full Project + NA Separation
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
@@ -127,7 +156,7 @@ if file:
                                 sheet_name = f"{p_rule['name']} {s_label}"[:31]
                                 final_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
                 
-                # 2. NA (Not assigned to any project)
+                # NA logic
                 na_df = df_proc[df_proc['Project Name'] == ""]
                 for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
                     final_na = na_df[na_df['_Sign'] == sign]

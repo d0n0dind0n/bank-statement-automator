@@ -3,7 +3,7 @@ import pandas as pd
 import io
 import re
 
-# --- 1. LANGUAGE DICTIONARY (Swapped labels to match desired behavior) ---
+# --- 1. LANGUAGE DICTIONARY ---
 LANGUAGES = {
     "English": {
         "title": "🏦 Bank Automator", 
@@ -12,8 +12,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_proj": "By Project",        # Now points to the Detailed Logic
-        "m_sign": "By Debit/Credit",   # Now points to the 2-Sheet Logic
+        "m_proj": "By Project",        # Detailed logic
+        "m_sign": "By Debit/Credit",   # 2-Sheet logic
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -102,7 +102,7 @@ with st.sidebar:
     except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. PROCESSING & EXPORT ---
+# --- 5. PROCESSING & EXPORT (NO DATAFRAME VIEW) ---
 st.title(t["title"])
 file = st.file_uploader(t["upload"], type="csv")
 
@@ -134,7 +134,7 @@ if file:
         df_proc['Project Name'] = search_txt.apply(lambda x: classify(x, st.session_state.proj_rules))
         df_proc['Commentary'] = ""
 
-        st.dataframe(df_proc.drop(columns=['_Sign']), use_container_width=True)
+        # st.dataframe section REMOVED to hide the file view
 
         st.divider()
         mode = st.radio(t["mode"], [t["m_proj"], t["m_sign"]]) 
@@ -144,7 +144,7 @@ if file:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["m_proj"]:
-                # --- DETAILED PROJECT MODE (Now mapped to "By Project") ---
+                # --- DETAILED PROJECT MODE (Multiple Sheets) ---
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
@@ -164,7 +164,7 @@ if file:
                             final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             
             else:
-                # --- GENERAL MODE (Now mapped to "By Debit/Credit") ---
+                # --- GENERAL MODE (2 Sheets) ---
                 for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == sign].copy()
                     if not subset.empty:

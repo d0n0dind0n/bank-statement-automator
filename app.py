@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 
-# --- 1. LANGUAGES ---
+# --- 1. LANGUAGE DICTIONARY ---
 LANGUAGES = {
     "English": {
         "title": "🏦 Bank Statement Automator",
@@ -57,38 +57,15 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & CLEAN UI CSS ---
+# --- 2. CONFIG & STYLING ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    /* Normal base size */
-    html, body, [class*="st-"] {
-        font-size: 16px;
-    }
-
-    /* Tighten horizontal spacing for the Rule Row specifically */
-    div[data-testid="stHorizontalBlock"] {
-        gap: 0.5rem !important;
-        align-items: center !important;
-    }
-    
-    /* Ensure Checkbox and Trash don't have huge side margins */
-    [data-testid="column"] {
-        padding-left: 2px !important;
-        padding-right: 2px !important;
-    }
-
-    /* Vertical alignment for trash can */
-    button[kind="secondary"] {
-        margin-top: 0px !important;
-    }
-
-    /* Logo at bottom center */
     .logo-container-bottom {
         display: flex;
         justify-content: center;
-        margin-top: 30px;
+        padding-top: 50px;
         padding-bottom: 20px;
     }
     .logo-container-bottom img {
@@ -96,7 +73,6 @@ st.markdown("""
         height: 100px;
         object-fit: contain;
     }
-
     .stButton button { width: 100% !important; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
@@ -126,7 +102,7 @@ if 'custom_lists' not in st.session_state:
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
+    selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
     st.divider()
@@ -137,43 +113,41 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-    # SECTION: CATEGORIES
-    with st.expander(t["cat_header"], expanded=True):
+    # CATEGORIES
+    with st.expander(t["cat_header"]):
         for i, rule in enumerate(st.session_state.cat_rules):
-            c1, c2, c3 = st.columns([0.3, 3, 0.5]) 
-            rule['active'] = c1.checkbox("", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
+            c1, c2, c3 = st.columns([0.7, 3, 0.7])
+            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
             rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
             if c3.button("🗑️", key=f"cat_del_{i}"):
                 st.session_state.cat_rules.pop(i)
                 st.rerun()
-            
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=70)
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=60)
             st.divider()
-        if st.button(t["add_rule_btn"], key="add_cat"):
+        if st.button(t["add_rule_btn"], key="add_cat_rule"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
             st.rerun()
 
-    # SECTION: DYNAMIC LISTS
+    # DYNAMIC LISTS
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
             col_lt, col_ld = st.columns([3, 1])
-            r_list['title'] = col_lt.text_input("List Name", value=r_list['title'], key=f"lt_{idx}", label_visibility="collapsed")
+            r_list['title'] = col_lt.text_input("List Name", value=r_list['title'], key=f"lt_{idx}")
             if col_ld.button("🗑️", key=f"ld_{idx}"):
                 st.session_state.custom_lists.pop(idx)
                 st.rerun()
             
-            st.divider()
             for i, rule in enumerate(r_list['rules']):
-                p1, p2, p3 = st.columns([0.3, 3, 0.5])
-                rule['active'] = p1.checkbox("", value=rule['active'], key=f"l_{idx}_on_{i}", label_visibility="collapsed")
+                p1, p2, p3 = st.columns([0.7, 3, 0.7])
+                rule['active'] = p1.checkbox("On", value=rule['active'], key=f"l_{idx}_on_{i}", label_visibility="collapsed")
                 rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"l_{idx}_n_{i}", label_visibility="collapsed")
                 if p3.button("🗑️", key=f"l_{idx}_del_{i}"):
                     r_list['rules'].pop(i)
                     st.rerun()
-                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=70)
+                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=60)
                 st.divider()
             
-            if st.button(t["add_rule_btn"], key=f"ar_{idx}"):
+            if st.button(t["add_rule_btn"], key=f"add_rule_{idx}"):
                 r_list['rules'].append({'name': 'New Rule', 'keywords': '', 'active': True})
                 st.rerun()
 
@@ -185,10 +159,10 @@ with st.sidebar:
     try:
         st.image("YoungFolks-circle-42.png")
     except:
-        pass
+        st.write("Young Folks")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. MAIN CONTENT ---
+# --- 5. MAIN LOGIC ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
@@ -204,9 +178,10 @@ if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df.rename(columns={0:'Account', 2:'Date', 3:'Partner', 4:'Purpose', 5:'Amount', 7:'Sign'}, inplace=True)
-        search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
         
+        search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
         df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
+        
         for r_list in st.session_state.custom_lists:
             df[r_list['title']] = search_col.apply(lambda x: classify(x, r_list['rules']))
         
@@ -218,22 +193,13 @@ if uploaded_file is not None:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["mode_sign"]:
-                # Logic: Sheets based on Credit (K) or Debit (D)
                 df[df['Sign'] == 'K'].to_excel(writer, index=False, sheet_name='Income')
                 df[df['Sign'] == 'D'].to_excel(writer, index=False, sheet_name='Expenses')
             else:
-                # Logic: Separate sheet for every single classified project/category
-                # 1. Categories
-                for name in df[df['Category'] != ""]['Category'].unique():
-                    df[df['Category'] == name].to_excel(writer, index=False, sheet_name=str(name)[:31])
-                # 2. Project lists
                 for r_list in st.session_state.custom_lists:
                     col = r_list['title']
                     for name in df[df[col] != ""][col].unique():
-                        # Prevent duplicate sheet names if name exists in Categories
-                        sheet_name = str(name)[:31]
-                        if sheet_name not in writer.sheets:
-                            df[df[col] == name].to_excel(writer, index=False, sheet_name=sheet_name)
+                        df[df[col] == name].to_excel(writer, index=False, sheet_name=str(name)[:31])
 
         st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

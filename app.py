@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 
-# --- 1. LANGUAGE DICTIONARY (NAMES SWAPPED) ---
+# --- 1. LANGUAGE DICTIONARY ---
 LANGUAGES = {
     "English": {
         "title": "🏦 Bank Automator", 
@@ -11,8 +11,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_sign": "By Project",        # Name changed to Project
-        "m_proj": "By Debit/Credit",   # Name changed to Debit/Credit
+        "m_sign": "By Project",        # Should result in 2 sheets total
+        "m_proj": "By Debit/Credit",   # Should result in many sheets (Project + Sign)
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -139,30 +139,37 @@ if file:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["m_sign"]:
-                # LOGIC FOR "By Project" BUTTON: Pure Debit/Credit separation
+                # LOGIC: "By Project" Button -> Just Income and Expenses (2 sheets total)
                 for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == sign].copy()
                     if not subset.empty:
                         subset[cols].to_excel(writer, index=False, sheet_name=s_name)
             
             else:
-                # LOGIC FOR "By Debit/Credit" BUTTON: Full Project + NA Separation
+                # LOGIC: "By Debit/Credit" Button -> Separate sheets for every project's income and expenses
+                # Process active projects
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
-                        for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
-                            final_df = p_df[p_df['_Sign'] == sign]
-                            if not final_df.empty:
-                                sheet_name = f"{p_rule['name']} {s_label}"[:31]
-                                final_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
+                        if not p_df.empty:
+                            # Project Income
+                            p_inc = p_df[p_df['_Sign'] == 'K']
+                            if not p_inc.empty:
+                                p_inc[cols].to_excel(writer, index=False, sheet_name=f"{p_rule['name']} Income"[:31])
+                            # Project Expenses
+                            p_exp = p_df[p_df['_Sign'] == 'D']
+                            if not p_exp.empty:
+                                p_exp[cols].to_excel(writer, index=False, sheet_name=f"{p_rule['name']} Expenses"[:31])
                 
-                # NA logic
+                # Process NA (Anything not assigned to a project)
                 na_df = df_proc[df_proc['Project Name'] == ""]
-                for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
-                    final_na = na_df[na_df['_Sign'] == sign]
-                    if not final_na.empty:
-                        sheet_name = f"NA {s_label}"[:31]
-                        final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
+                if not na_df.empty:
+                    na_inc = na_df[na_df['_Sign'] == 'K']
+                    if not na_inc.empty:
+                        na_inc[cols].to_excel(writer, index=False, sheet_name="NA Income")
+                    na_exp = na_df[na_df['_Sign'] == 'D']
+                    if not na_exp.empty:
+                        na_exp[cols].to_excel(writer, index=False, sheet_name="NA Expenses")
 
         st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

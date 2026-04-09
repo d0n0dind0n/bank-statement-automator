@@ -37,6 +37,23 @@ LANGUAGES = {
         "mode_proj": "Pa visiem sarakstiem",
         "download_btn": "📥 Lejupielādēt Excel",
         "reset": "♻️ Atiestatīt"
+    },
+    "Русский": {
+        "title": "🏦 Автоматизация банковских выписок",
+        "upload_label": "Загрузить банковский CSV",
+        "rule_manager": "Управление правилами",
+        "cat_header": "📁 КАТЕГОРИИ",
+        "proj_header": "📁 ПРОЕКТЫ",
+        "add_list_btn": "➕ Создать новый список",
+        "add_rule_btn": "➕ Добавить правило",
+        "name": "Название",
+        "keywords": "Ключевые слова",
+        "success": "Обработано: {} доходов и {} расходов",
+        "download_mode": "Формат Excel",
+        "mode_sign": "По Дебету/Кредиту",
+        "mode_proj": "По спискам правил",
+        "download_btn": "📥 Скачать Excel",
+        "reset": "♻️ Сброс"
     }
 }
 
@@ -54,11 +71,11 @@ st.markdown("""
         padding-bottom: 20px;
     }
     .logo-container-bottom img {
-        width: 100px; /* Consistent square size */
+        width: 100px;
         height: 100px;
         object-fit: contain;
         border-radius: 10px;
-        opacity: 0.8;
+        opacity: 0.9;
     }
 
     /* Scaling Logic: Targets sidebar elements based on width */
@@ -70,7 +87,7 @@ st.markdown("""
         [data-testid="stSidebarContent"] * { font-size: calc(12px + 0.2cqw) !important; }
     }
     @container (min-width: 400px) {
-        [data-testid="stSidebarContent"] * { font-size: calc(14px + 0.5cqw) !important; }
+        [data-testid="stSidebarContent"] * { font-size: calc(14px + 0.6cqw) !important; }
     }
     
     /* Full width buttons */
@@ -168,6 +185,7 @@ def classify(text, rules):
 
 if uploaded_file is not None:
     try:
+        # Load CSV (semi-colon separated)
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df.rename(columns={0:'Account', 2:'Date', 3:'Partner', 4:'Purpose', 5:'Amount', 7:'Sign'}, inplace=True)
         

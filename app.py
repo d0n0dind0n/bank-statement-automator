@@ -90,18 +90,31 @@ st.markdown("""
         [data-testid="stSidebarContent"] * { font-size: calc(14px + 0.6cqw) !important; }
     }
     
-    /* Full width buttons */
     .stButton button { width: 100% !important; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE ---
+# --- 3. SESSION STATE (Restoring All Original Data) ---
 if 'cat_rules' not in st.session_state:
-    st.session_state.cat_rules = [{'name': 'Transport', 'keywords': 'BOLT', 'active': True}]
+    st.session_state.cat_rules = [
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE, Pasažieru vilciens', 'active': True},
+        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
+        {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums, Funding', 'active': True},
+        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi, Workshop', 'active': True},
+        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa, Commission', 'active': True},
+        {'name': 'Donations', 'keywords': 'Ziedojums, Donation, Dāvinājums', 'active': True}
+    ]
 
 if 'custom_lists' not in st.session_state:
     st.session_state.custom_lists = [
-        {'title': 'PROJECTS', 'rules': [{'name': 'Young Folks', 'keywords': 'YF', 'active': True}]}
+        {
+            'title': 'PROJECTS', 
+            'rules': [
+                {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība, Kursi', 'active': True},
+                {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
+                {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
+            ]
+        }
     ]
 
 # --- 4. SIDEBAR ---
@@ -185,7 +198,6 @@ def classify(text, rules):
 
 if uploaded_file is not None:
     try:
-        # Load CSV (semi-colon separated)
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df.rename(columns={0:'Account', 2:'Date', 3:'Partner', 4:'Purpose', 5:'Amount', 7:'Sign'}, inplace=True)
         

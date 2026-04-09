@@ -14,7 +14,6 @@ LANGUAGES = {
         "add_rule_btn": "➕ Add Rule",
         "name": "Name",
         "keywords": "Keywords",
-        "success": "Processed: {} Income and {} Expenses",
         "download_mode": "Excel Format",
         "mode_sign": "By Debit/Credit",
         "mode_proj": "By Custom Lists",
@@ -31,7 +30,6 @@ LANGUAGES = {
         "add_rule_btn": "➕ Pievienot noteikumu",
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
-        "success": "Apstrādāts: {} ienākumi un {} izdevumi",
         "download_mode": "Excel formāts",
         "mode_sign": "Pa Debetu/Kredītu",
         "mode_proj": "Pa visiem sarakstiem",
@@ -48,7 +46,6 @@ LANGUAGES = {
         "add_rule_btn": "➕ Добавить правило",
         "name": "Название",
         "keywords": "Ключевые слова",
-        "success": "Обработано: {} доходов и {} расходов",
         "download_mode": "Формат Excel",
         "mode_sign": "По Дебету/Кредиту",
         "mode_proj": "По спискам правил",
@@ -57,30 +54,21 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & STYLING ---
+# --- 2. CONFIG ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    .logo-container-bottom {
-        display: flex;
-        justify-content: center;
-        padding-top: 50px;
-        padding-bottom: 20px;
-    }
-    .logo-container-bottom img {
-        width: 100px;
-        height: 100px;
-        object-fit: contain;
-    }
+    .logo-container-bottom { display: flex; justify-content: center; padding-top: 50px; padding-bottom: 20px; }
+    .logo-container-bottom img { width: 100px; height: 100px; object-fit: contain; }
     .stButton button { width: 100% !important; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE ---
+# --- 3. SESSION STATE (Default Rules) ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE, Pasažieru vilciens', 'active': True},
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
         {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
         {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
         {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
@@ -90,14 +78,11 @@ if 'cat_rules' not in st.session_state:
 
 if 'custom_lists' not in st.session_state:
     st.session_state.custom_lists = [
-        {
-            'title': 'PROJECTS', 
-            'rules': [
-                {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība, Kursi', 'active': True},
-                {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
-                {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
-            ]
-        }
+        {'title': 'PROJECTS', 'rules': [
+            {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība', 'active': True},
+            {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
+            {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
+        ]}
     ]
 
 # --- 4. SIDEBAR ---
@@ -120,47 +105,34 @@ with st.sidebar:
             rule['active'] = c1.checkbox("On", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
             rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
             if c3.button("🗑️", key=f"cat_del_{i}"):
-                st.session_state.cat_rules.pop(i)
-                st.rerun()
+                st.session_state.cat_rules.pop(i); st.rerun()
             rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=60)
             st.divider()
-        if st.button(t["add_rule_btn"], key="add_cat_rule"):
-            st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
-            st.rerun()
+        if st.button(t["add_rule_btn"], key="add_cat"):
+            st.session_state.cat_rules.append({'name': 'New', 'keywords': '', 'active': True}); st.rerun()
 
-    # DYNAMIC LISTS
+    # PROJECTS
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
-            col_lt, col_ld = st.columns([3, 1])
-            r_list['title'] = col_lt.text_input("List Name", value=r_list['title'], key=f"lt_{idx}")
-            if col_ld.button("🗑️", key=f"ld_{idx}"):
-                st.session_state.custom_lists.pop(idx)
-                st.rerun()
-            
+            l1, l2 = st.columns([3, 1])
+            r_list['title'] = l1.text_input("List Name", value=r_list['title'], key=f"lt_{idx}")
+            if l2.button("🗑️", key=f"ld_{idx}"):
+                st.session_state.custom_lists.pop(idx); st.rerun()
             for i, rule in enumerate(r_list['rules']):
                 p1, p2, p3 = st.columns([0.7, 3, 0.7])
                 rule['active'] = p1.checkbox("On", value=rule['active'], key=f"l_{idx}_on_{i}", label_visibility="collapsed")
                 rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"l_{idx}_n_{i}", label_visibility="collapsed")
                 if p3.button("🗑️", key=f"l_{idx}_del_{i}"):
-                    r_list['rules'].pop(i)
-                    st.rerun()
+                    r_list['rules'].pop(i); st.rerun()
                 rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=60)
                 st.divider()
-            
-            if st.button(t["add_rule_btn"], key=f"add_rule_{idx}"):
-                r_list['rules'].append({'name': 'New Rule', 'keywords': '', 'active': True})
-                st.rerun()
+            if st.button(t["add_rule_btn"], key=f"ar_{idx}"):
+                r_list['rules'].append({'name': 'New', 'keywords': '', 'active': True}); st.rerun()
 
     if st.button(t["add_list_btn"], type="primary"):
-        st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
-        st.rerun()
+        st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []}); st.rerun()
 
-    st.markdown('<div class="logo-container-bottom">', unsafe_allow_html=True)
-    try:
-        st.image("YoungFolks-circle-42.png")
-    except:
-        st.write("Young Folks")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="logo-container-bottom"><img src="https://static.wixstatic.com/media/8f3522_944f77c36a6e4d25a6918809c9167e41~mv2.png"></div>', unsafe_allow_html=True)
 
 # --- 5. MAIN LOGIC ---
 st.title(t["title"])
@@ -176,30 +148,49 @@ def classify(text, rules):
 
 if uploaded_file is not None:
     try:
+        # Load raw CSV
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
-        df.rename(columns={0:'Account', 2:'Date', 3:'Partner', 4:'Purpose', 5:'Amount', 7:'Sign'}, inplace=True)
         
-        search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
-        df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
+        # Mapping to your required structure
+        # Original CSV mapping: 0:Account, 2:Date, 3:Partner, 4:Purpose, 5:Amount, 7:Sign
+        df_final = pd.DataFrame()
+        df_final['Account'] = df[0]
+        df_final['Date'] = df[2]
+        df_final['Partner'] = df[3]
+        df_final['Purpose'] = df[4]
+        df_final['Amount'] = df[5]
         
-        for r_list in st.session_state.custom_lists:
-            df[r_list['title']] = search_col.apply(lambda x: classify(x, r_list['rules']))
+        search_col = df_final['Partner'].fillna('') + " " + df_final['Purpose'].fillna('')
         
-        st.dataframe(df, use_container_width=True)
+        # Classification
+        df_final['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
+        
+        # Get Project Name (from the first custom list labeled PROJECTS)
+        proj_rules = st.session_state.custom_lists[0]['rules'] if st.session_state.custom_lists else []
+        df_final['Project Name'] = search_col.apply(lambda x: classify(x, proj_rules))
+        
+        # Placeholder for Commentary
+        df_final['Commentary'] = ""
+        
+        # Keep internal Sign for sheet splitting
+        df_final['_Sign'] = df[7]
+
+        st.dataframe(df_final.drop(columns=['_Sign']), use_container_width=True)
 
         st.divider()
         mode = st.radio(t["download_mode"], [t["mode_sign"], t["mode_proj"]])
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            # Drop the internal helper column before export
+            export_df = df_final.copy()
+            
             if mode == t["mode_sign"]:
-                df[df['Sign'] == 'K'].to_excel(writer, index=False, sheet_name='Income')
-                df[df['Sign'] == 'D'].to_excel(writer, index=False, sheet_name='Expenses')
+                export_df[export_df['_Sign'] == 'K'].drop(columns=['_Sign']).to_excel(writer, index=False, sheet_name='Income')
+                export_df[export_df['_Sign'] == 'D'].drop(columns=['_Sign']).to_excel(writer, index=False, sheet_name='Expenses')
             else:
-                for r_list in st.session_state.custom_lists:
-                    col = r_list['title']
-                    for name in df[df[col] != ""][col].unique():
-                        df[df[col] == name].to_excel(writer, index=False, sheet_name=str(name)[:31])
+                for name in export_df[export_df['Project Name'] != ""]['Project Name'].unique():
+                    export_df[export_df['Project Name'] == name].drop(columns=['_Sign']).to_excel(writer, index=False, sheet_name=str(name)[:31])
 
         st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

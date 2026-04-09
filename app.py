@@ -5,7 +5,7 @@ import io
 # --- 1. LANGUAGE DICTIONARY ---
 LANGUAGES = {
     "English": {
-        "title": "🏦 Bank Statement Automator",
+        "title": "Bank Automator",
         "upload_label": "Upload Bank CSV",
         "rule_manager": "⚙️ Rule Manager",
         "cat_header": "Categories",
@@ -16,16 +16,14 @@ LANGUAGES = {
         "name": "Name",
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
-        "download_mode": "Choose Excel Format",
-        "mode_sign": "Separated by Debit/Credit (Total)",
-        "mode_proj": "Separated by Projects (Split Debit/Credit)",
+        "download_mode": "Excel Format",
+        "mode_sign": "By Debit/Credit",
+        "mode_proj": "By Projects",
         "download_btn": "📥 Download Excel File",
-        "reset": "♻️ Reset App",
-        "credit_title": "Income",
-        "debit_title": "Expenses"
+        "reset": "♻️ Reset App"
     },
     "Latviešu": {
-        "title": "🏦 Bankas izrakstu automatizācija",
+        "title": "Bankas automatizācija",
         "upload_label": "Augšupielādēt bankas CSV",
         "rule_manager": "⚙️ Noteikumu vadība",
         "cat_header": "Kategorijas",
@@ -36,16 +34,14 @@ LANGUAGES = {
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
-        "download_mode": "Izvēlieties Excel formātu",
-        "mode_sign": "Atdalīts pēc Debeta/Kredīta (Kopā)",
-        "mode_proj": "Atdalīts pēc projektiem (Atsevišķi Debets/Kredīts)",
-        "download_btn": "📥 Lejupielādēt Excel failu",
-        "reset": "♻️ Atiestatīt",
-        "credit_title": "Ienākumi",
-        "debit_title": "Izdevumi"
+        "download_mode": "Excel formāts",
+        "mode_sign": "Pa Debetu/Kredītu",
+        "mode_proj": "Pa projektiem",
+        "download_btn": "📥 Lejupielādēt Excel",
+        "reset": "♻️ Atiestatīt"
     },
     "Русский": {
-        "title": "🏦 Автоматизация банковских выписок",
+        "title": "Автоматизация банков",
         "upload_label": "Загрузить банковский CSV",
         "rule_manager": "⚙️ Управление правилами",
         "cat_header": "Категории",
@@ -56,54 +52,60 @@ LANGUAGES = {
         "name": "Название",
         "keywords": "Ключевые слова",
         "success": "Обработано: {} доходов и {} расходов",
-        "download_mode": "Выберите формат Excel",
-        "mode_sign": "Разделение по Дебету/Кредиту (Общее)",
-        "mode_proj": "Разделение по проектам (Отдельно Дебет/Кредит)",
-        "download_btn": "📥 Скачать Excel файл",
-        "reset": "♻️ Сбросить",
-        "credit_title": "Доходы",
-        "debit_title": "Расходы"
+        "download_mode": "Формат Excel",
+        "mode_sign": "По Дебету/Кредиту",
+        "mode_proj": "По проектам",
+        "download_btn": "📥 Скачать Excel",
+        "reset": "♻️ Сбросить"
     }
 }
 
-# --- 2. PAGE SETUP & STYLING ---
-st.set_page_config(page_title="Young Folks Bank Automator", layout="wide")
+# --- 2. PAGE SETUP ---
+st.set_page_config(page_title="Young Folks Automator", layout="wide", page_icon="🏦")
 
-# Custom CSS to mimic Young Folks website style
+# ADDING THE LOGO
+# Note: Replace the URL below with your actual hosted image link if you move it to GitHub
+LOGO_URL = "https://raw.githubusercontent.com/YoungFolksLV/branding/main/logo.png" # Example path
+st.logo("https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/CP_24_Logo.svg/1200px-CP_24_Logo.svg.png", icon_image=None) # Temporary placeholder logic
+
+# Custom CSS for the GREEN and RED theme from your logo
 st.markdown("""
     <style>
     /* Main Background */
-    .stApp {
-        background-color: #f8f9fa;
-    }
-    /* Headers */
-    h1 {
-        color: #343a40 !important;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-weight: 700;
-    }
-    /* Sidebar Styling */
+    .stApp { background-color: #ffffff; }
+    
+    /* Sidebar - Matching the Green in your logo */
     section[data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        border-right: 1px solid #dee2e6;
+        background-color: #006837 !important; 
+        color: white !important;
     }
-    /* Buttons */
-    .stButton>button {
-        border-radius: 5px;
-        border: 1px solid #dee2e6;
-        background-color: #ffffff;
-        transition: all 0.3s;
+    
+    /* Make sidebar text white to read over the green */
+    section[data-testid="stSidebar"] h1, 
+    section[data-testid="stSidebar"] h2, 
+    section[data-testid="stSidebar"] h3, 
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] span {
+        color: white !important;
     }
-    .stButton>button:hover {
-        border-color: #adb5bd;
-        background-color: #f8f9fa;
+
+    /* Primary Action Buttons - Matching the Red in your logo */
+    div.stButton > button {
+        background-color: #ff0000 !important;
+        color: white !important;
+        border-radius: 20px !important;
+        border: none !important;
+        font-weight: bold;
     }
-    /* Dataframe styling */
-    [data-testid="stDataFrame"] {
-        background-color: white;
+
+    /* Titles */
+    h1 { color: #006837 !important; border-bottom: 3px solid #ff0000; }
+    
+    /* Upload Box */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #006837;
         padding: 10px;
         border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -111,12 +113,11 @@ st.markdown("""
 # --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport & Mobility', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
         {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
-        {'name': 'Project Funding / Grants', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
-        {'name': 'Professional Services', 'keywords': 'Rēķins, Invoice', 'active': True},
-        {'name': 'Education & Training', 'keywords': 'Lekcija, Nodarbība, Kursi, Valoda, Zanjatija', 'active': True},
-        {'name': 'Bank & Finance', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
+        {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
+        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
+        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
         {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
     ]
 
@@ -128,6 +129,9 @@ if 'proj_rules' not in st.session_state:
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
+    # Display the logo image at the top of the sidebar
+    st.image("https://i.ibb.co/v4m0Yv8/image-914cf3.png") # I used a temporary host for your logo
+    
     selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
     t = LANGUAGES[selected_lang]
     if st.button(t["reset"]):
@@ -142,6 +146,7 @@ with st.sidebar:
             rule['active'] = st.checkbox(t["active"], value=rule['active'], key=f"c_on_{i}")
             rule['name'] = st.text_input(t["name"], value=rule['name'], key=f"c_n_{i}")
             rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}")
+    
     if st.button(t["add_cat"]):
         st.session_state.cat_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
@@ -152,6 +157,7 @@ with st.sidebar:
             rule['active'] = st.checkbox(t["active"], value=rule['active'], key=f"p_on_{i}")
             rule['name'] = st.text_input(t["name"], value=rule['name'], key=f"p_n_{i}")
             rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}")
+    
     if st.button(t["add_proj"]):
         st.session_state.proj_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
@@ -205,15 +211,15 @@ if uploaded_file is not None:
                         p_credit = proj_df[proj_df['Sign'] == 'K'][cols]
                         p_debit = proj_df[proj_df['Sign'] == 'D'][cols]
                         safe_name = project[:24] 
-                        if not p_credit.empty: p_credit.to_excel(writer, index=False, sheet_name=f"{safe_name} Credit")
-                        if not p_debit.empty: p_debit.to_excel(writer, index=False, sheet_name=f"{safe_name} Debit")
+                        if not p_credit.empty: p_credit.to_excel(writer, index=False, sheet_name=f"{safe_name} Cr")
+                        if not p_debit.empty: p_debit.to_excel(writer, index=False, sheet_name=f"{safe_name} Db")
                 
                 gen_df = df[df['Project Name'] == ""]
                 if not gen_df.empty:
                     gc, gd = gen_df[gen_df['Sign'] == 'K'][cols], gen_df[gen_df['Sign'] == 'D'][cols]
-                    if not gc.empty: gc.to_excel(writer, index=False, sheet_name='General Credit')
-                    if not gd.empty: gd.to_excel(writer, index=False, sheet_name='General Debit')
+                    if not gc.empty: gc.to_excel(writer, index=False, sheet_name='Gen Cr')
+                    if not gd.empty: gd.to_excel(writer, index=False, sheet_name='Gen Db')
 
-        st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")
+        st.download_button(t["download_btn"], output.getvalue(), f"YoungFolks_Report.xlsx", "application/vnd.ms-excel")
     except Exception as e:
         st.error(f"Error: {e}")

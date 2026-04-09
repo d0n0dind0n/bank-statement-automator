@@ -5,7 +5,7 @@ import io
 # --- 1. LANGUAGE DICTIONARY ---
 LANGUAGES = {
     "English": {
-        "title": "🏦 Bank Automator",
+        "title": "🏦 Bank Statement Automator",
         "upload_label": "Upload Bank CSV",
         "rule_manager": "⚙️ Rule Manager",
         "cat_header": "Categories",
@@ -16,14 +16,14 @@ LANGUAGES = {
         "name": "Name",
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
-        "download_mode": "Excel Format",
-        "mode_sign": "By Debit/Credit",
-        "mode_proj": "By Projects",
+        "download_mode": "Choose Excel Format",
+        "mode_sign": "Separated by Debit/Credit",
+        "mode_proj": "Separated by Projects",
         "download_btn": "📥 Download Excel File",
         "reset": "♻️ Reset App"
     },
     "Latviešu": {
-        "title": "🏦 Bankas automatizācija",
+        "title": "🏦 Bankas izrakstu automatizācija",
         "upload_label": "Augšupielādēt bankas CSV",
         "rule_manager": "⚙️ Noteikumu vadība",
         "cat_header": "Kategorijas",
@@ -34,14 +34,14 @@ LANGUAGES = {
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
-        "download_mode": "Excel formāts",
-        "mode_sign": "Pa Debetu/Kredītu",
-        "mode_proj": "Pa projektiem",
-        "download_btn": "📥 Lejupielādēt Excel",
+        "download_mode": "Izvēlieties Excel formātu",
+        "mode_sign": "Atdalīts pēc Debeta/Kredīta",
+        "mode_proj": "Atdalīts pēc projektiem",
+        "download_btn": "📥 Lejupielādēt Excel failu",
         "reset": "♻️ Atiestatīt"
     },
     "Русский": {
-        "title": "🏦 Автоматизация банков",
+        "title": "🏦 Автоматизация банковских выписок",
         "upload_label": "Загрузить банковский CSV",
         "rule_manager": "⚙️ Управление правилами",
         "cat_header": "Категории",
@@ -52,66 +52,24 @@ LANGUAGES = {
         "name": "Название",
         "keywords": "Ключевые слова",
         "success": "Обработано: {} доходов и {} расходов",
-        "download_mode": "Формат Excel",
-        "mode_sign": "По Дебету/Кредиту",
-        "mode_proj": "По проектам",
-        "download_btn": "📥 Скачать Excel",
+        "download_mode": "Выберите формат Excel",
+        "mode_sign": "Разделение по Дебету/Кредиту",
+        "mode_proj": "Разделение по проектам",
+        "download_btn": "📥 Скачать Excel файл",
         "reset": "♻️ Сбросить"
     }
 }
 
-# --- 2. PAGE SETUP & BRANDED STYLE ---
-st.set_page_config(page_title="Young Folks Automator", layout="wide", page_icon="🏦")
+# --- 2. CONFIG & SESSION STATE ---
+st.set_page_config(page_title="Young Folks Bank Automator", layout="wide")
 
-st.markdown("""
-    <style>
-    /* Main Background */
-    .stApp { background-color: #ffffff; }
-    
-    /* Sidebar - Young Folks Green */
-    section[data-testid="stSidebar"] {
-        background-color: #006837 !important; 
-    }
-    
-    /* Sidebar Text White */
-    section[data-testid="stSidebar"] h1, 
-    section[data-testid="stSidebar"] h2, 
-    section[data-testid="stSidebar"] h3, 
-    section[data-testid="stSidebar"] p,
-    section[data-testid="stSidebar"] span,
-    section[data-testid="stSidebar"] label {
-        color: white !important;
-    }
-
-    /* Primary Action Buttons - Young Folks Red */
-    div.stButton > button {
-        background-color: #ff0000 !important;
-        color: white !important;
-        border-radius: 20px !important;
-        border: none !important;
-        font-weight: bold;
-        width: 100%;
-    }
-
-    /* Main Titles Green */
-    h1 { color: #006837 !important; border-bottom: 3px solid #ff0000; padding-bottom: 10px; }
-    
-    /* Input Fields */
-    .stTextInput>div>div>input {
-        background-color: #ffffff !important;
-        border: 1px solid #006837 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
+        {'name': 'Transport & Mobility', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
         {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
-        {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
-        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
-        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
+        {'name': 'Project Funding / Grants', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
+        {'name': 'Education & Training', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
+        {'name': 'Bank & Finance', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
         {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
     ]
 
@@ -121,25 +79,22 @@ if 'proj_rules' not in st.session_state:
         {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
     ]
 
-# --- 4. SIDEBAR ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
-    # Attempt to load your specific logo file
+    # Logo placement
     try:
         st.image("YoungFolks-circle-42.png", use_container_width=True)
     except:
-        st.info("Logo file not found. Ensure 'YoungFolks-circle-42.png' is in the GitHub folder.")
-    
+        st.info("Logo file not found in folder.")
+
     selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
     t = LANGUAGES[selected_lang]
-    
     if st.button(t["reset"]):
         st.session_state.clear()
         st.rerun()
-    
     st.divider()
     st.header(t["rule_manager"])
     
-    # Categories
     st.subheader(t["cat_header"])
     for i, rule in enumerate(st.session_state.cat_rules):
         with st.expander(f"{rule['name'] or '...'}"):
@@ -150,7 +105,6 @@ with st.sidebar:
         st.session_state.cat_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
 
-    # Projects
     st.subheader(t["proj_header"])
     for i, rule in enumerate(st.session_state.proj_rules):
         with st.expander(f"{rule['name'] or '...'}"):
@@ -161,13 +115,13 @@ with st.sidebar:
         st.session_state.proj_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
 
-# --- 5. MAIN LOGIC ---
+# --- 4. MAIN APP ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
 def clean_name(text):
     if pd.isna(text) or text == "": return ""
-    return str(text).split('|')[0].strip()
+    return str(text).split('|')[0].strip() if '|' in str(text) else str(text).strip()
 
 def classify(text, rules):
     text = str(text).lower()
@@ -186,9 +140,10 @@ if uploaded_file is not None:
         df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
         df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
         df['Commentary'] = ""
-        df = df[~df['Purpose'].str.contains('balance|Turnover', case=False, na=False)]
+        df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums|Apgrozījums', case=False, na=False)]
         
         cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+        
         st.success(t["success"].format(len(df[df['Sign'] == 'K']), len(df[df['Sign'] == 'D'])))
         st.dataframe(df[cols], use_container_width=True)
 
@@ -209,17 +164,15 @@ if uploaded_file is not None:
                         p_credit = proj_df[proj_df['Sign'] == 'K'][cols]
                         p_debit = proj_df[proj_df['Sign'] == 'D'][cols]
                         safe_name = project[:24] 
-                        if not p_credit.empty: p_credit.to_excel(writer, index=False, sheet_name=f"{safe_name} Cr")
-                        if not p_debit.empty: p_debit.to_excel(writer, index=False, sheet_name=f"{safe_name} Db")
+                        if not p_credit.empty: p_credit.to_excel(writer, index=False, sheet_name=f"{safe_name} Credit")
+                        if not p_debit.empty: p_debit.to_excel(writer, index=False, sheet_name=f"{safe_name} Debit")
                 
-                # General transactions logic
                 gen_df = df[df['Project Name'] == ""]
                 if not gen_df.empty:
-                    gc = gen_df[gen_df['Sign'] == 'K'][cols]
-                    gd = gen_df[gen_df['Sign'] == 'D'][cols]
-                    if not gc.empty: gc.to_excel(writer, index=False, sheet_name='General Cr')
-                    if not gd.empty: gd.to_excel(writer, index=False, sheet_name='General Db')
+                    gc, gd = gen_df[gen_df['Sign'] == 'K'][cols], gen_df[gen_df['Sign'] == 'D'][cols]
+                    if not gc.empty: gc.to_excel(writer, index=False, sheet_name='General Credit')
+                    if not gd.empty: gd.to_excel(writer, index=False, sheet_name='General Debit')
 
-        st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx", "application/vnd.ms-excel")
+        st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")
     except Exception as e:
         st.error(f"Error: {e}")

@@ -57,51 +57,64 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & TIGHT ALIGNMENT CSS ---
+# --- 2. CONFIG & ULTRA-COMPACT CSS ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. Scaling Text based on Sidebar Width */
-    [data-testid="stSidebarContent"] { container-type: inline-size; }
-    @container (min-width: 0px) { [data-testid="stSidebarContent"] * { font-size: calc(11px + 0.1cqw) !important; } }
-    @container (min-width: 450px) { [data-testid="stSidebarContent"] * { font-size: calc(13px + 0.4cqw) !important; } }
-
-    /* 2. Tighten horizontal and vertical spacing for rules */
-    div[data-testid="stHorizontalBlock"] {
+    /* 1. Universal tight spacing */
+    [data-testid="stSidebarContent"] {
         gap: 0rem !important;
-        align-items: center !important;
     }
     
-    /* Remove padding between columns in the rule row */
-    [data-testid="column"] {
-        padding-left: 1px !important;
-        padding-right: 1px !important;
+    /* 2. Tighten horizontal columns for rules */
+    div[data-testid="stHorizontalBlock"] {
+        gap: 0.2rem !important;
+        align-items: center !important;
     }
 
-    /* Make text inputs and labels more compact */
-    .stTextInput, .stTextArea {
-        margin-bottom: -15px !important;
+    /* 3. Force inputs to be compact vertically */
+    .stTextInput, .stTextArea, .stCheckbox {
+        margin-bottom: -1.2rem !important;
     }
 
-    /* Tighten Expander internal margins */
+    /* 4. Keyword text area spacing */
+    div.stTextArea label {
+        margin-bottom: -0.5rem !important;
+        padding-top: 0.5rem !important;
+    }
+
+    /* 5. Remove huge padding inside expanders */
     .st-emotion-cache-p4mowd {
-        padding: 0.5rem 0.5rem !important;
+        padding: 0.4rem 0.6rem !important;
     }
 
-    /* Logo Styling */
+    /* 6. Reduce Divider space */
+    hr {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* 7. Align Trash button with input */
+    button[kind="secondary"] {
+        margin-top: 1.2rem !important;
+        padding: 0px !important;
+        height: 2.2rem !important;
+    }
+
+    /* 8. Logo at the very bottom */
     .logo-container-bottom {
         display: flex;
         justify-content: center;
-        margin-top: 30px;
+        margin-top: 20px;
     }
     .logo-container-bottom img {
-        width: 90px;
-        height: 90px;
+        width: 85px;
+        height: 85px;
         object-fit: contain;
     }
 
-    /* Full width buttons */
+    /* Buttons full width */
     .stButton button { width: 100% !important; border-radius: 4px; }
     </style>
     """, unsafe_allow_html=True)
@@ -134,26 +147,26 @@ with st.sidebar:
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
-    st.divider()
-    
+    # Rule Manager Header
     h_col, r_col = st.columns([2.5, 1])
-    h_col.subheader(t["rule_manager"])
+    h_col.markdown(f"### {t['rule_manager']}")
     if r_col.button(t["reset"]):
         st.session_state.clear()
         st.rerun()
 
     # CATEGORIES SECTION
-    with st.expander(t["cat_header"]):
+    with st.expander(t["cat_header"], expanded=True):
         for i, rule in enumerate(st.session_state.cat_rules):
-            # Very tight column ratios
-            c1, c2, c3 = st.columns([0.3, 3, 0.4]) 
-            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
-            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
+            # C1: Checkbox, C2: Name, C3: Trash
+            c1, c2, c3 = st.columns([0.25, 3, 0.45]) 
+            rule['active'] = c1.checkbox("", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
+            rule['name'] = c2.text_input("", value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
             if c3.button("🗑️", key=f"cat_del_{i}"):
                 st.session_state.cat_rules.pop(i)
                 st.rerun()
-            st.write("") # Tiny vertical buffer
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=60)
+            
+            # Keywords right under it
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=65)
             st.divider()
         if st.button(t["add_rule_btn"], key="add_cat"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
@@ -163,27 +176,27 @@ with st.sidebar:
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
             col_lt, col_ld = st.columns([3, 1])
-            r_list['title'] = col_lt.text_input("List Name", value=r_list['title'], key=f"lt_{idx}")
-            if col_ld.button("🗑️ List", key=f"ld_{idx}"):
+            r_list['title'] = col_lt.text_input("List Name", value=r_list['title'], key=f"lt_{idx}", label_visibility="collapsed")
+            if col_ld.button("🗑️", key=f"ld_{idx}"):
                 st.session_state.custom_lists.pop(idx)
                 st.rerun()
             
             st.divider()
             for i, rule in enumerate(r_list['rules']):
-                p1, p2, p3 = st.columns([0.3, 3, 0.4])
-                rule['active'] = p1.checkbox("On", value=rule['active'], key=f"l_{idx}_on_{i}", label_visibility="collapsed")
-                rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"l_{idx}_n_{i}", label_visibility="collapsed")
+                p1, p2, p3 = st.columns([0.25, 3, 0.45])
+                rule['active'] = p1.checkbox("", value=rule['active'], key=f"l_{idx}_on_{i}", label_visibility="collapsed")
+                rule['name'] = p2.text_input("", value=rule['name'], key=f"l_{idx}_n_{i}", label_visibility="collapsed")
                 if p3.button("🗑️", key=f"l_{idx}_del_{i}"):
                     r_list['rules'].pop(i)
                     st.rerun()
-                st.write("") 
-                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=60)
+                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=65)
                 st.divider()
             
             if st.button(t["add_rule_btn"], key=f"ar_{idx}"):
                 r_list['rules'].append({'name': 'New Rule', 'keywords': '', 'active': True})
                 st.rerun()
 
+    # New List Button
     if st.button(t["add_list_btn"], type="primary"):
         st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
         st.rerun()

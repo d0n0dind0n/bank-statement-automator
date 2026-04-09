@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
+import re  # Added for exact word matching
 
 # --- 1. LANGUAGE DICTIONARY (Updated Labels) ---
 LANGUAGES = {
@@ -105,12 +106,18 @@ with st.sidebar:
 st.title(t["title"])
 file = st.file_uploader(t["upload"], type="csv")
 
+# UPDATED: classify function with exact word matching logic
 def classify(text, rules):
     text = str(text).lower()
     for r in rules:
         if r['active'] and r['keywords']:
             keys = [k.strip().lower() for k in r['keywords'].split(',')]
-            if any(k in text for k in keys if k): return r['name']
+            for k in keys:
+                if k:
+                    # \b ensures we only match the whole word (e.g. 'NVA' not in 'sarunvalodas')
+                    pattern = rf"\b{re.escape(k)}\b"
+                    if re.search(pattern, text):
+                        return r['name']
     return ""
 
 if file:

@@ -66,6 +66,7 @@ if 'cat_rules' not in st.session_state:
 
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
+        {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība, Kursi, Zanjatija, Tutor', 'active': True},
         {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
         {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
     ]

@@ -65,7 +65,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE (Default Rules) ---
+# --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
         {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
@@ -132,7 +132,13 @@ with st.sidebar:
     if st.button(t["add_list_btn"], type="primary"):
         st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []}); st.rerun()
 
-    st.markdown('<div class="logo-container-bottom"><img src="https://static.wixstatic.com/media/8f3522_944f77c36a6e4d25a6918809c9167e41~mv2.png"></div>', unsafe_allow_html=True)
+    # RESTORED LOCAL LOGO
+    st.markdown('<div class="logo-container-bottom">', unsafe_allow_html=True)
+    try:
+        st.image("YoungFolks-circle-42.png")
+    except:
+        st.write("Young Folks Logo")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 5. MAIN LOGIC ---
 st.title(t["title"])
@@ -148,11 +154,9 @@ def classify(text, rules):
 
 if uploaded_file is not None:
     try:
-        # Load raw CSV
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         
-        # Mapping to your required structure
-        # Original CSV mapping: 0:Account, 2:Date, 3:Partner, 4:Purpose, 5:Amount, 7:Sign
+        # COLUMN MAINTENANCE: Fixed Order
         df_final = pd.DataFrame()
         df_final['Account'] = df[0]
         df_final['Date'] = df[2]
@@ -162,18 +166,14 @@ if uploaded_file is not None:
         
         search_col = df_final['Partner'].fillna('') + " " + df_final['Purpose'].fillna('')
         
-        # Classification
         df_final['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
         
-        # Get Project Name (from the first custom list labeled PROJECTS)
+        # Use first project list for the 'Project Name' column
         proj_rules = st.session_state.custom_lists[0]['rules'] if st.session_state.custom_lists else []
         df_final['Project Name'] = search_col.apply(lambda x: classify(x, proj_rules))
         
-        # Placeholder for Commentary
         df_final['Commentary'] = ""
-        
-        # Keep internal Sign for sheet splitting
-        df_final['_Sign'] = df[7]
+        df_final['_Sign'] = df[7] # Internal helper
 
         st.dataframe(df_final.drop(columns=['_Sign']), use_container_width=True)
 
@@ -182,7 +182,6 @@ if uploaded_file is not None:
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            # Drop the internal helper column before export
             export_df = df_final.copy()
             
             if mode == t["mode_sign"]:

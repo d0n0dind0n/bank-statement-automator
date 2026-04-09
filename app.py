@@ -16,7 +16,7 @@ LANGUAGES = {
         "keywords": "Keywords",
         "download_mode": "Excel Format",
         "mode_sign": "By Debit/Credit",
-        "mode_proj": "By Custom Lists",
+        "mode_proj": "By Projects",
         "download_btn": "📥 Download Excel",
         "reset": "♻️ Reset"
     },
@@ -32,7 +32,7 @@ LANGUAGES = {
         "keywords": "Atslēgvārdi",
         "download_mode": "Excel formāts",
         "mode_sign": "Pa Debetu/Kredītu",
-        "mode_proj": "Pa visiem sarakstiem",
+        "mode_proj": "Pa Projektiem",
         "download_btn": "📥 Lejupielādēt Excel",
         "reset": "♻️ Atiestatīt"
     },
@@ -48,7 +48,7 @@ LANGUAGES = {
         "keywords": "Ключевые слова",
         "download_mode": "Формат Excel",
         "mode_sign": "По Дебету/Кредиту",
-        "mode_proj": "По спискам правил",
+        "mode_proj": "По Проектам",
         "download_btn": "📥 Скачать Excel",
         "reset": "♻️ Сброс"
     }
@@ -62,32 +62,24 @@ st.markdown("""
     .logo-container-bottom { display: flex; justify-content: center; padding-top: 50px; padding-bottom: 20px; }
     .logo-container-bottom img { width: 100px; height: 100px; object-fit: contain; }
     .stButton button { width: 100% !important; border-radius: 8px; }
+    /* Compact Sidebar Column Styling */
     div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; align-items: center !important; }
     [data-testid="column"] { padding-left: 2px !important; padding-right: 2px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE (RESTORED PROJECTS) ---
+# --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE, Pasažieru vilciens', 'active': True},
-        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
-        {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
-        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
-        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
-        {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
+        {'name': 'Bank Fees', 'keywords': 'Komisija', 'active': True}
     ]
 
 if 'custom_lists' not in st.session_state:
     st.session_state.custom_lists = [
-        {
-            'title': 'PROJECTS', 
-            'rules': [
-                {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība, Kursi', 'active': True},
-                {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
-                {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
-            ]
-        }
+        {'title': 'NVA DEBIT', 'rules': [{'name': 'Payment', 'keywords': 'NVA', 'active': True}]},
+        {'title': 'NVA CREDIT', 'rules': [{'name': 'Refund', 'keywords': 'NVA Refund', 'active': True}]},
+        {'title': 'LESSONS', 'rules': [{'name': 'Class', 'keywords': 'Lesson', 'active': True}]}
     ]
 
 # --- 4. SIDEBAR ---
@@ -101,7 +93,7 @@ with st.sidebar:
     if r_col.button(t["reset"]):
         st.session_state.clear(); st.rerun()
 
-    # CATEGORIES
+    # CATEGORIES SECTION
     with st.expander(t["cat_header"]):
         for i, rule in enumerate(st.session_state.cat_rules):
             c1, c2, c3 = st.columns([0.4, 3, 0.5])
@@ -114,7 +106,7 @@ with st.sidebar:
         if st.button(t["add_rule_btn"], key="add_cat"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True}); st.rerun()
 
-    # DYNAMIC PROJECTS
+    # PROJECTS SECTION (Individual lists for NVA Credit, NVA Debit, etc.)
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
             l1, l2 = st.columns([3, 1])
@@ -156,7 +148,7 @@ if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         
-        # Structure your specific columns
+        # Prepare Data Structure
         df_proc = pd.DataFrame()
         df_proc['Account'] = df[0]
         df_proc['Date'] = df[2]
@@ -176,21 +168,28 @@ if uploaded_file is not None:
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            export_df = df_proc.copy()
+            cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+            
             if mode == t["mode_sign"]:
-                for s, name in [('K', 'Income'), ('D', 'Expenses')]:
-                    subset = df_proc[df_proc['_Sign'] == s].copy()
+                # Logic: Separate sheets for Income (K) and Expenses (D)
+                for s, sheet_name in [('K', 'Income'), ('D', 'Expenses')]:
+                    subset = export_df[export_df['_Sign'] == s].copy()
                     subset['Project Name'] = ""
-                    cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-                    subset[cols].to_excel(writer, index=False, sheet_name=name)
+                    subset[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             else:
+                # Logic: Every List (NVA Credit, NVA Debit, etc.) gets its own Sheet
                 for r_list in st.session_state.custom_lists:
-                    df_proj = df_proc.copy()
+                    # Filter rows matching rules within THIS specific list
+                    df_proj = export_df.copy()
                     df_proj['Project Name'] = search_col.apply(lambda x: classify(x, r_list['rules']))
+                    
                     final_subset = df_proj[df_proj['Project Name'] != ""].copy()
                     
                     if not final_subset.empty:
-                        cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-                        final_subset[cols].to_excel(writer, index=False, sheet_name=str(r_list['title'])[:31])
+                        # Sheet name is the List title (e.g. "NVA CREDIT")
+                        sheet_name = str(r_list['title'])[:31].replace('[', '').replace(']', '')
+                        final_subset[cols].to_excel(writer, index=False, sheet_name=sheet_name)
 
         st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

@@ -57,64 +57,69 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & ULTRA-COMPACT CSS ---
+# --- 2. CONFIG & SYNCED SCALING CSS ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. Universal tight spacing */
+    /* 1. Global Scaling for Sidebar */
     [data-testid="stSidebarContent"] {
-        gap: 0rem !important;
+        container-type: inline-size;
     }
-    
-    /* 2. Tighten horizontal columns for rules */
+
+    /* Scaling both Font AND Icons based on container width */
+    @container (min-width: 0px) {
+        [data-testid="stSidebarContent"] * { font-size: calc(11px + 0.1cqw) !important; }
+        [data-testid="stSidebarContent"] svg { width: 1.1rem !important; height: 1.1rem !important; }
+    }
+    @container (min-width: 450px) {
+        [data-testid="stSidebarContent"] * { font-size: calc(13px + 0.5cqw) !important; }
+        [data-testid="stSidebarContent"] svg { width: 1.4rem !important; height: 1.4rem !important; }
+    }
+
+    /* 2. Alignment & Tight Spacing */
     div[data-testid="stHorizontalBlock"] {
-        gap: 0.2rem !important;
+        gap: 0.1rem !important;
         align-items: center !important;
     }
+    
+    [data-testid="column"] {
+        padding-left: 1px !important;
+        padding-right: 1px !important;
+    }
 
-    /* 3. Force inputs to be compact vertically */
+    /* Pull elements closer vertically */
     .stTextInput, .stTextArea, .stCheckbox {
-        margin-bottom: -1.2rem !important;
+        margin-bottom: -1.3rem !important;
     }
 
-    /* 4. Keyword text area spacing */
-    div.stTextArea label {
-        margin-bottom: -0.5rem !important;
-        padding-top: 0.5rem !important;
-    }
-
-    /* 5. Remove huge padding inside expanders */
-    .st-emotion-cache-p4mowd {
-        padding: 0.4rem 0.6rem !important;
-    }
-
-    /* 6. Reduce Divider space */
-    hr {
-        margin-top: 0.5rem !important;
-        margin-bottom: 0.5rem !important;
-    }
-
-    /* 7. Align Trash button with input */
+    /* Sync Trash Button Height with Font */
     button[kind="secondary"] {
-        margin-top: 1.2rem !important;
+        margin-top: 1.3rem !important;
         padding: 0px !important;
-        height: 2.2rem !important;
+        min-height: 2rem !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
-    /* 8. Logo at the very bottom */
+    /* Remove expander padding bloat */
+    .st-emotion-cache-p4mowd {
+        padding: 0.3rem 0.5rem !important;
+    }
+
+    /* Logo at bottom */
     .logo-container-bottom {
         display: flex;
         justify-content: center;
-        margin-top: 20px;
+        margin-top: 25px;
     }
     .logo-container-bottom img {
-        width: 85px;
-        height: 85px;
+        width: 80px;
+        height: 80px;
         object-fit: contain;
     }
 
-    /* Buttons full width */
     .stButton button { width: 100% !important; border-radius: 4px; }
     </style>
     """, unsafe_allow_html=True)
@@ -147,7 +152,8 @@ with st.sidebar:
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
-    # Rule Manager Header
+    st.divider()
+    
     h_col, r_col = st.columns([2.5, 1])
     h_col.markdown(f"### {t['rule_manager']}")
     if r_col.button(t["reset"]):
@@ -157,7 +163,6 @@ with st.sidebar:
     # CATEGORIES SECTION
     with st.expander(t["cat_header"], expanded=True):
         for i, rule in enumerate(st.session_state.cat_rules):
-            # C1: Checkbox, C2: Name, C3: Trash
             c1, c2, c3 = st.columns([0.25, 3, 0.45]) 
             rule['active'] = c1.checkbox("", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
             rule['name'] = c2.text_input("", value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
@@ -165,7 +170,6 @@ with st.sidebar:
                 st.session_state.cat_rules.pop(i)
                 st.rerun()
             
-            # Keywords right under it
             rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=65)
             st.divider()
         if st.button(t["add_rule_btn"], key="add_cat"):
@@ -196,7 +200,6 @@ with st.sidebar:
                 r_list['rules'].append({'name': 'New Rule', 'keywords': '', 'active': True})
                 st.rerun()
 
-    # New List Button
     if st.button(t["add_list_btn"], type="primary"):
         st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
         st.rerun()
@@ -209,7 +212,7 @@ with st.sidebar:
         pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. MAIN LOGIC ---
+# --- 5. MAIN CONTENT ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 

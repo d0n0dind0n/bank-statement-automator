@@ -8,9 +8,8 @@ LANGUAGES = {
         "title": "🏦 Bank Statement Automator",
         "upload_label": "Upload Bank CSV",
         "rule_manager": "⚙️ Rule Manager",
-        "cat_header": "Categories",
-        "proj_header": "Projects",
-        "active": "Active",
+        "cat_header": "📁 CATEGORIES",
+        "proj_header": "📁 PROJECTS",
         "name": "Name",
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
@@ -24,9 +23,8 @@ LANGUAGES = {
         "title": "🏦 Bankas izrakstu automatizācija",
         "upload_label": "Augšupielādēt bankas CSV",
         "rule_manager": "⚙️ Noteikumu vadība",
-        "cat_header": "Kategorijas",
-        "proj_header": "Projekti",
-        "active": "Aktīvs",
+        "cat_header": "📁 KATEGORIJAS",
+        "proj_header": "📁 PROJEKTI",
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
@@ -34,16 +32,14 @@ LANGUAGES = {
         "mode_sign": "Atdalīts pēc Debeta/Kredīta",
         "mode_proj": "Atdalīts pēc projektiem",
         "download_btn": "📥 Lejupielādēt Excel failu",
-        "reset": "♻️ Atiestatīt",
-        "active": "Ieslēgts"
+        "reset": "♻️ Atiestatīt"
     },
     "Русский": {
         "title": "🏦 Автоматизация банковских выписок",
         "upload_label": "Загрузить банковский CSV",
         "rule_manager": "⚙️ Управление правилами",
-        "cat_header": "Категории",
-        "proj_header": "Проекты",
-        "active": "Активен",
+        "cat_header": "📁 КАТЕГОРИИ",
+        "proj_header": "📁 ПРОЕКТЫ",
         "name": "Название",
         "keywords": "Ключевые слова",
         "success": "Обработано: {} доходов и {} расходов",
@@ -91,26 +87,27 @@ with st.sidebar:
     st.divider()
     st.header(t["rule_manager"])
     
-    # --- Categories Section ---
-    st.subheader(t["cat_header"])
-    for i, rule in enumerate(st.session_state.cat_rules):
-        # We use a status indicator in the label
-        status = "✅" if rule['active'] else "❌"
-        with st.expander(f"{status} {rule['name'] or '...'}"):
-            c1, c2 = st.columns([1, 4])
-            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"c_on_{i}", label_visibility="collapsed")
-            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"c_n_{i}", label_visibility="collapsed")
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}")
+    # --- MASTER CATEGORIES EXPANDER ---
+    with st.expander(t["cat_header"], expanded=False):
+        for i, rule in enumerate(st.session_state.cat_rules):
+            status = "✅" if rule['active'] else "❌"
+            with st.container():
+                c1, c2 = st.columns([1, 4])
+                rule['active'] = c1.checkbox("On", value=rule['active'], key=f"c_on_{i}", label_visibility="collapsed")
+                rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"c_n_{i}", label_visibility="collapsed")
+                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}", height=68)
+                st.divider()
 
-    # --- Projects Section ---
-    st.subheader(t["proj_header"])
-    for i, rule in enumerate(st.session_state.proj_rules):
-        status = "✅" if rule['active'] else "❌"
-        with st.expander(f"{status} {rule['name'] or '...'}"):
-            p1, p2 = st.columns([1, 4])
-            rule['active'] = p1.checkbox("On", value=rule['active'], key=f"p_on_{i}", label_visibility="collapsed")
-            rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"p_n_{i}", label_visibility="collapsed")
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}")
+    # --- MASTER PROJECTS EXPANDER ---
+    with st.expander(t["proj_header"], expanded=False):
+        for i, rule in enumerate(st.session_state.proj_rules):
+            status = "✅" if rule['active'] else "❌"
+            with st.container():
+                p1, p2 = st.columns([1, 4])
+                rule['active'] = p1.checkbox("On", value=rule['active'], key=f"p_on_{i}", label_visibility="collapsed")
+                rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"p_n_{i}", label_visibility="collapsed")
+                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}", height=68)
+                st.divider()
 
 # --- 4. MAIN APP ---
 st.title(t["title"])

@@ -17,7 +17,7 @@ LANGUAGES = {
         "success": "Processed: {} Income and {} Expenses",
         "download_mode": "Excel Format",
         "mode_sign": "By Debit/Credit",
-        "mode_proj": "By All Custom Lists",
+        "mode_proj": "By Custom Lists",
         "download_btn": "📥 Download Excel",
         "reset": "♻️ Reset"
     },
@@ -40,53 +40,67 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & FORCE SCALING CSS ---
+# --- 2. CONFIG & IMPROVED SCALING CSS ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
-# This CSS uses container-query logic to scale text based on the sidebar width
 st.markdown("""
     <style>
-    /* Force scaling for text and icons in the sidebar */
-    [data-testid="stSidebar"] {
+    /* Square Logo Container */
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 10px;
+    }
+    .logo-container img {
+        width: 120px; /* Fixed small square size */
+        height: 120px;
+        object-fit: contain;
+        border-radius: 10px;
+    }
+
+    /* Scaling Logic: Targets sidebar elements based on width */
+    [data-testid="stSidebarContent"] {
         container-type: inline-size;
     }
-    @container (min-width: 350px) {
-        [data-testid="stSidebar"] * {
-            font-size: 1.1rem !important;
-        }
+    
+    @container (min-width: 0px) {
+        [data-testid="stSidebarContent"] * { font-size: calc(12px + 0.2cqw) !important; }
     }
-    @container (min-width: 500px) {
-        [data-testid="stSidebar"] * {
-            font-size: 1.4rem !important;
-        }
+    @container (min-width: 400px) {
+        [data-testid="stSidebarContent"] * { font-size: calc(14px + 0.5cqw) !important; }
     }
-    /* Make buttons and inputs fill space */
-    .stButton button, .stTextInput input, .stTextArea textarea {
-        width: 100% !important;
-    }
+    
+    /* Ensure icons/buttons fill space */
+    .stButton button { width: 100% !important; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE (Rule Storage) ---
+# --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
-    st.session_state.cat_rules = [{'name': 'Transport', 'keywords': 'BOLT', 'active': True}]
+    st.session_state.cat_rules = [
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
+        {'name': 'Education', 'keywords': 'Lesson, Nodarbība', 'active': True}
+    ]
 
 if 'custom_lists' not in st.session_state:
-    # This stores your dynamic rule lists (e.g., Projects, Taxes, etc.)
     st.session_state.custom_lists = [
         {'title': 'PROJECTS', 'rules': [{'name': 'Young Folks', 'keywords': 'YF', 'active': True}]}
     ]
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
+    # Small Square Logo
+    st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+    try:
+        st.image("YoungFolks-circle-42.png") # Uses the fixed width from CSS
+    except:
+        st.write("### YF")
+    st.markdown('</div>', unsafe_allow_html=True)
+
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
-    try:
-        st.image("YoungFolks-circle-42.png", use_container_width=True)
-    except:
-        st.write("### YOUNG FOLKS")
-
     st.divider()
     
     h_col, r_col = st.columns([2, 1])
@@ -95,7 +109,7 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-    # SECTION: CATEGORIES (Fixed)
+    # SECTION: CATEGORIES
     with st.expander(t["cat_header"]):
         for i, rule in enumerate(st.session_state.cat_rules):
             c1, c2, c3 = st.columns([0.7, 3, 0.7])
@@ -111,32 +125,31 @@ with st.sidebar:
             st.rerun()
 
     # SECTION: DYNAMIC RULE LISTS
-    for list_idx, r_list in enumerate(st.session_state.custom_lists):
+    for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
-            # Edit List Title
-            r_list['title'] = st.text_input("List Name", value=r_list['title'], key=f"list_title_{list_idx}")
-            if st.button(f"🗑️ Delete Entire List: {r_list['title']}", key=f"del_list_{list_idx}"):
-                st.session_state.custom_lists.pop(list_idx)
+            col_lt, col_ld = st.columns([3, 1])
+            r_list['title'] = col_lt.text_input("List Name", value=r_list['title'], key=f"lt_{idx}")
+            if col_ld.button("🗑️", key=f"ld_{idx}"):
+                st.session_state.custom_lists.pop(idx)
                 st.rerun()
-            st.divider()
             
-            # Rules within this list
+            st.divider()
             for i, rule in enumerate(r_list['rules']):
                 p1, p2, p3 = st.columns([0.7, 3, 0.7])
-                rule['active'] = p1.checkbox("On", value=rule['active'], key=f"l_{list_idx}_on_{i}", label_visibility="collapsed")
-                rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"l_{list_idx}_n_{i}", label_visibility="collapsed")
-                if p3.button("🗑️", key=f"l_{list_idx}_del_{i}"):
+                rule['active'] = p1.checkbox("On", value=rule['active'], key=f"l_{idx}_on_{i}", label_visibility="collapsed")
+                rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"l_{idx}_n_{i}", label_visibility="collapsed")
+                if p3.button("🗑️", key=f"l_{idx}_del_{i}"):
                     r_list['rules'].pop(i)
                     st.rerun()
-                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{list_idx}_k_{i}", height=60)
+                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=60)
                 st.divider()
             
-            if st.button(t["add_rule_btn"], key=f"add_rule_{list_idx}"):
+            if st.button(t["add_rule_btn"], key=f"add_rule_{idx}"):
                 r_list['rules'].append({'name': 'New Rule', 'keywords': '', 'active': True})
                 st.rerun()
 
     st.divider()
-    # BLUE AREA: BUTTON TO CREATE NEW LISTS
+    # "BLUE" AREA (Primary Button)
     if st.button(t["add_list_btn"], type="primary"):
         st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
         st.rerun()
@@ -161,11 +174,9 @@ if uploaded_file is not None:
         search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
         df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
         
-        # Apply all custom lists
         for r_list in st.session_state.custom_lists:
             df[r_list['title']] = search_col.apply(lambda x: classify(x, r_list['rules']))
         
-        df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums', case=False, na=False)]
         st.dataframe(df, use_container_width=True)
 
         st.divider()
@@ -179,11 +190,8 @@ if uploaded_file is not None:
             else:
                 for r_list in st.session_state.custom_lists:
                     col = r_list['title']
-                    unique_names = df[df[col] != ""][col].unique()
-                    for name in unique_names:
-                        sub = df[df[col] == name]
-                        safe = str(name)[:24].replace('/', '_')
-                        sub.to_excel(writer, index=False, sheet_name=f"{safe}")
+                    for name in df[df[col] != ""][col].unique():
+                        df[df[col] == name].to_excel(writer, index=False, sheet_name=str(name)[:31])
 
         st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

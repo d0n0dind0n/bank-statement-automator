@@ -20,7 +20,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE (RESTORED CLEAN CATEGORY & PROJECT) ---
+# --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
         {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE, Pasažieru vilciens', 'active': True},
@@ -36,14 +36,12 @@ if 'proj_rules' not in st.session_state:
         {'name': 'Lessons', 'keywords': 'Lesson, Nodarbība', 'active': True}
     ]
 
-# --- 4. SIDEBAR (RULE MANAGER) ---
+# --- 4. SIDEBAR (STAYS THE SAME) ---
 with st.sidebar:
     lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[lang]
-    
     st.header("Rule Manager")
     
-    # CATEGORY SECTION
     with st.expander(t["cat"], expanded=True):
         for i, rule in enumerate(st.session_state.cat_rules):
             c1, c2, c3 = st.columns([0.5, 3, 0.5])
@@ -56,7 +54,6 @@ with st.sidebar:
         if st.button(t["add_rule"], key="add_cat"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True}); st.rerun()
 
-    # PROJECT SECTION
     with st.expander(t["proj"], expanded=True):
         for i, rule in enumerate(st.session_state.proj_rules):
             p1, p2, p3 = st.columns([0.5, 3, 0.5])
@@ -74,7 +71,7 @@ with st.sidebar:
     except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. MAIN LOGIC & EXPORT ---
+# --- 5. MAIN LOGIC & UPDATED EXPORT ---
 st.title(t["title"])
 file = st.file_uploader(t["upload"], type="csv")
 
@@ -112,19 +109,28 @@ if file:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["m_sign"]:
-                # Logic 1: Sheet per Debit/Credit
                 for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == sign].copy()
                     subset[cols].to_excel(writer, index=False, sheet_name=s_name)
             else:
-                # Logic 2: Sheet per individual Project Rule
+                # SEPARATE INCOME/EXPENSE SHEETS FOR EACH PROJECT
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
-                        # Filter rows matching this specific project rule
-                        p_subset = df_proc[df_proc['Project Name'] == p_rule['name']].copy()
-                        if not p_subset.empty:
-                            sheet_name = str(p_rule['name'])[:31].strip()
-                            p_subset[cols].to_excel(writer, index=False, sheet_name=sheet_name)
+                        # Filter rows for this project
+                        p_df = df_proc[df_proc['Project Name'] == p_rule['name']].copy()
+                        
+                        if not p_df.empty:
+                            # 1. Project Income Sheet
+                            inc_df = p_df[p_df['_Sign'] == 'K'].copy()
+                            if not inc_df.empty:
+                                sheet_name = f"{p_rule['name']} Income"[:31].strip()
+                                inc_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
+                            
+                            # 2. Project Expenses Sheet
+                            exp_df = p_df[p_df['_Sign'] == 'D'].copy()
+                            if not exp_df.empty:
+                                sheet_name = f"{p_rule['name']} Expenses"[:31].strip()
+                                exp_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
 
         st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

@@ -108,27 +108,32 @@ if file:
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
-            # SWAPPED LOGIC AS REQUESTED:
-            
             if mode == t["m_sign"]:
-                # "By Debit/Credit" now uses Project filtering logic (All Projects separate)
-                for p_rule in st.session_state.proj_rules + [{'name': 'NA', 'active': True}]:
-                    if p_rule['active']:
-                        name = p_rule['name']
-                        p_df = df_proc[df_proc['Project Name'] == (name if name != 'NA' else "")]
-                        
-                        for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
-                            final_df = p_df[p_df['_Sign'] == sign]
-                            if not final_df.empty:
-                                sheet_name = f"{name} {s_label}"[:31]
-                                final_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
-            
-            else:
-                # "By Project" now uses general Debit/Credit sheet logic
+                # PURE DEBIT/CREDIT LOGIC: Just two sheets. No project separation.
                 for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == sign].copy()
                     if not subset.empty:
                         subset[cols].to_excel(writer, index=False, sheet_name=s_name)
+            
+            else:
+                # PROJECT LOGIC: Each project gets separate Income/Expenses sheets.
+                # 1. Assigned Projects
+                for p_rule in st.session_state.proj_rules:
+                    if p_rule['active']:
+                        p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
+                        for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
+                            final_df = p_df[p_df['_Sign'] == sign]
+                            if not final_df.empty:
+                                sheet_name = f"{p_rule['name']} {s_label}"[:31]
+                                final_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
+                
+                # 2. NA (Not assigned to any project)
+                na_df = df_proc[df_proc['Project Name'] == ""]
+                for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
+                    final_na = na_df[na_df['_Sign'] == sign]
+                    if not final_na.empty:
+                        sheet_name = f"NA {s_label}"[:31]
+                        final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
 
         st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

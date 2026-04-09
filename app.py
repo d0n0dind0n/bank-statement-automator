@@ -10,14 +10,14 @@ LANGUAGES = {
         "rule_manager": "Rule Manager",
         "cat_header": "📁 CATEGORIES",
         "proj_header": "📁 PROJECTS",
-        "gen_header": "📁 GENERAL RULES",
-        "add_btn": "➕ Add New Rule",
+        "add_list_btn": "➕ Create New Rule List",
+        "add_rule_btn": "➕ Add Rule",
         "name": "Name",
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
         "download_mode": "Excel Format",
         "mode_sign": "By Debit/Credit",
-        "mode_proj": "By Projects & Rules",
+        "mode_proj": "By All Custom Lists",
         "download_btn": "📥 Download Excel",
         "reset": "♻️ Reset"
     },
@@ -27,58 +27,61 @@ LANGUAGES = {
         "rule_manager": "Noteikumu vadība",
         "cat_header": "📁 KATEGORIJAS",
         "proj_header": "📁 PROJEKTI",
-        "gen_header": "📁 VISPĀRĪGI NOTEIKUMI",
-        "add_btn": "➕ Pievienot jaunu",
+        "add_list_btn": "➕ Izveidot jaunu sarakstu",
+        "add_rule_btn": "➕ Pievienot noteikumu",
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
         "download_mode": "Excel formāts",
         "mode_sign": "Pa Debetu/Kredītu",
-        "mode_proj": "Pa projektiem un noteikumiem",
+        "mode_proj": "Pa visiem sarakstiem",
         "download_btn": "📥 Lejupielādēt Excel",
         "reset": "♻️ Atiestatīt"
     }
 }
 
-# --- 2. CONFIG & DYNAMIC RESPONSIVE STYLE ---
+# --- 2. CONFIG & FORCE SCALING CSS ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
+# This CSS uses container-query logic to scale text based on the sidebar width
 st.markdown("""
     <style>
-    /* Responsive Text: Scales based on sidebar width using clamp */
-    [data-testid="stSidebar"] .stText, 
-    [data-testid="stSidebar"] label, 
-    [data-testid="stSidebar"] button p {
-        font-size: clamp(12px, 1vw, 20px) !important;
+    /* Force scaling for text and icons in the sidebar */
+    [data-testid="stSidebar"] {
+        container-type: inline-size;
     }
-    [data-testid="stSidebar"] input {
-        font-size: clamp(14px, 1.1vw, 22px) !important;
-        font-weight: bold !important;
+    @container (min-width: 350px) {
+        [data-testid="stSidebar"] * {
+            font-size: 1.1rem !important;
+        }
     }
-    /* Button styling */
-    .stButton button {
-        width: 100%;
-        border-radius: 8px;
+    @container (min-width: 500px) {
+        [data-testid="stSidebar"] * {
+            font-size: 1.4rem !important;
+        }
+    }
+    /* Make buttons and inputs fill space */
+    .stButton button, .stTextInput input, .stTextArea textarea {
+        width: 100% !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. SESSION STATE (Rule Storage) ---
 if 'cat_rules' not in st.session_state:
-    st.session_state.cat_rules = [{'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True}]
+    st.session_state.cat_rules = [{'name': 'Transport', 'keywords': 'BOLT', 'active': True}]
 
-if 'proj_rules' not in st.session_state:
-    st.session_state.proj_rules = [{'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}]
-
-if 'gen_rules' not in st.session_state:
-    st.session_state.gen_rules = [{'name': 'Taxes', 'keywords': 'VID, Nodoklis', 'active': True}]
+if 'custom_lists' not in st.session_state:
+    # This stores your dynamic rule lists (e.g., Projects, Taxes, etc.)
+    st.session_state.custom_lists = [
+        {'title': 'PROJECTS', 'rules': [{'name': 'Young Folks', 'keywords': 'YF', 'active': True}]}
+    ]
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
-    # Logo based on your uploaded image
     try:
         st.image("YoungFolks-circle-42.png", use_container_width=True)
     except:
@@ -91,39 +94,52 @@ with st.sidebar:
     if r_col.button(t["reset"]):
         st.session_state.clear()
         st.rerun()
-    
-    # Helper function to render rule UI
-    def render_rules(rule_list, key_prefix):
-        for i, rule in enumerate(rule_list):
-            c1, c2, c3 = st.columns([0.7, 3, 0.7])
-            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"{key_prefix}_on_{i}", label_visibility="collapsed")
-            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"{key_prefix}_n_{i}", label_visibility="collapsed")
-            if c3.button("🗑️", key=f"{key_prefix}_del_{i}"):
-                rule_list.pop(i)
-                st.rerun()
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"{key_prefix}_k_{i}", height=70)
-            st.divider()
 
-    # SECTION 1: CATEGORIES
+    # SECTION: CATEGORIES (Fixed)
     with st.expander(t["cat_header"]):
-        render_rules(st.session_state.cat_rules, "cat")
-        if st.button(t["add_btn"], key="add_cat_btn"):
+        for i, rule in enumerate(st.session_state.cat_rules):
+            c1, c2, c3 = st.columns([0.7, 3, 0.7])
+            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
+            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
+            if c3.button("🗑️", key=f"cat_del_{i}"):
+                st.session_state.cat_rules.pop(i)
+                st.rerun()
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=60)
+            st.divider()
+        if st.button(t["add_rule_btn"], key="add_cat_rule"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
             st.rerun()
 
-    # SECTION 2: PROJECTS
-    with st.expander(t["proj_header"]):
-        render_rules(st.session_state.proj_rules, "proj")
-        if st.button(t["add_btn"], key="add_proj_btn"):
-            st.session_state.proj_rules.append({'name': 'New Project', 'keywords': '', 'active': True})
-            st.rerun()
+    # SECTION: DYNAMIC RULE LISTS
+    for list_idx, r_list in enumerate(st.session_state.custom_lists):
+        with st.expander(f"📁 {r_list['title']}"):
+            # Edit List Title
+            r_list['title'] = st.text_input("List Name", value=r_list['title'], key=f"list_title_{list_idx}")
+            if st.button(f"🗑️ Delete Entire List: {r_list['title']}", key=f"del_list_{list_idx}"):
+                st.session_state.custom_lists.pop(list_idx)
+                st.rerun()
+            st.divider()
+            
+            # Rules within this list
+            for i, rule in enumerate(r_list['rules']):
+                p1, p2, p3 = st.columns([0.7, 3, 0.7])
+                rule['active'] = p1.checkbox("On", value=rule['active'], key=f"l_{list_idx}_on_{i}", label_visibility="collapsed")
+                rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"l_{list_idx}_n_{i}", label_visibility="collapsed")
+                if p3.button("🗑️", key=f"l_{list_idx}_del_{i}"):
+                    r_list['rules'].pop(i)
+                    st.rerun()
+                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{list_idx}_k_{i}", height=60)
+                st.divider()
+            
+            if st.button(t["add_rule_btn"], key=f"add_rule_{list_idx}"):
+                r_list['rules'].append({'name': 'New Rule', 'keywords': '', 'active': True})
+                st.rerun()
 
-    # SECTION 3: GENERAL RULES (Added as per your request)
-    with st.expander(t["gen_header"]):
-        render_rules(st.session_state.gen_rules, "gen")
-        if st.button(t["add_btn"], key="add_gen_btn"):
-            st.session_state.gen_rules.append({'name': 'New General Rule', 'keywords': '', 'active': True})
-            st.rerun()
+    st.divider()
+    # BLUE AREA: BUTTON TO CREATE NEW LISTS
+    if st.button(t["add_list_btn"], type="primary"):
+        st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
+        st.rerun()
 
 # --- 5. MAIN LOGIC ---
 st.title(t["title"])
@@ -144,16 +160,13 @@ if uploaded_file is not None:
         
         search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
         df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
-        df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
-        df['General Rule'] = search_col.apply(lambda x: classify(x, st.session_state.gen_rules))
-        df['Commentary'] = ""
         
-        # Filter out balance turnover rows
-        df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums|Apgrozījums', case=False, na=False)]
+        # Apply all custom lists
+        for r_list in st.session_state.custom_lists:
+            df[r_list['title']] = search_col.apply(lambda x: classify(x, r_list['rules']))
         
-        cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'General Rule', 'Commentary']
-        st.success(t["success"].format(len(df[df['Sign'] == 'K']), len(df[df['Sign'] == 'D'])))
-        st.dataframe(df[cols], use_container_width=True)
+        df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums', case=False, na=False)]
+        st.dataframe(df, use_container_width=True)
 
         st.divider()
         mode = st.radio(t["download_mode"], [t["mode_sign"], t["mode_proj"]])
@@ -161,31 +174,16 @@ if uploaded_file is not None:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["mode_sign"]:
-                df[df['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name='Credit')
-                df[df['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name='Debit')
+                df[df['Sign'] == 'K'].to_excel(writer, index=False, sheet_name='Income')
+                df[df['Sign'] == 'D'].to_excel(writer, index=False, sheet_name='Expenses')
             else:
-                # Combine Projects and General Rules for sheet creation
-                all_rule_sets = [
-                    (st.session_state.proj_rules, 'Project Name'),
-                    (st.session_state.gen_rules, 'General Rule')
-                ]
-                
-                found_any = False
-                for rule_list, col_name in all_rule_sets:
-                    active_names = [r['name'] for r in rule_list if r['active'] and r['name']]
-                    for name in active_names:
-                        sub_df = df[df[col_name] == name]
-                        if not sub_df.empty:
-                            safe = name[:24].replace('/', '_')
-                            sub_df[sub_df['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name=f"{safe} CR")
-                            sub_df[sub_df['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name=f"{safe} DB")
-                            found_any = True
-                
-                # General Catch-all (anything not classified by project or general rule)
-                catch_all = df[(df['Project Name'] == "") & (df['General Rule'] == "")]
-                if not catch_all.empty:
-                    catch_all[catch_all['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name='Unclassified CR')
-                    catch_all[catch_all['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name='Unclassified DB')
+                for r_list in st.session_state.custom_lists:
+                    col = r_list['title']
+                    unique_names = df[df[col] != ""][col].unique()
+                    for name in unique_names:
+                        sub = df[df[col] == name]
+                        safe = str(name)[:24].replace('/', '_')
+                        sub.to_excel(writer, index=False, sheet_name=f"{safe}")
 
         st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

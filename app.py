@@ -16,9 +16,10 @@ LANGUAGES = {
         "name": "Name",
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
-        "credit_title": "Credit (Income)",
-        "debit_title": "Debit (Expense)",
-        "download_btn": "📥 Download Excel",
+        "download_mode": "Choose Excel Format",
+        "mode_sign": "Separated by Debit/Credit",
+        "mode_proj": "Separated by Projects",
+        "download_btn": "📥 Download Excel File",
         "reset": "♻️ Reset App"
     },
     "Latviešu": {
@@ -33,9 +34,10 @@ LANGUAGES = {
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
-        "credit_title": "Kredīts (Ienākumi)",
-        "debit_title": "Debets (Izdevumi)",
-        "download_btn": "📥 Lejupielādēt Excel",
+        "download_mode": "Izvēlieties Excel formātu",
+        "mode_sign": "Atdalīts pēc Debeta/Kredīta",
+        "mode_proj": "Atdalīts pēc projektiem",
+        "download_btn": "📥 Lejupielādēt Excel failu",
         "reset": "♻️ Atiestatīt"
     },
     "Русский": {
@@ -50,9 +52,10 @@ LANGUAGES = {
         "name": "Название",
         "keywords": "Ключевые слова",
         "success": "Обработано: {} доходов и {} расходов",
-        "credit_title": "Кредит (Доходы)",
-        "debit_title": "Дебет (Расходы)",
-        "download_btn": "📥 Скачать Excel",
+        "download_mode": "Выберите формат Excel",
+        "mode_sign": "Разделение по Дебету/Кредиту",
+        "mode_proj": "Разделение по проектам",
+        "download_btn": "📥 Скачать Excel файл",
         "reset": "♻️ Сбросить"
     }
 }
@@ -63,19 +66,18 @@ st.set_page_config(page_title="Bank Automator", layout="wide")
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
         {'name': 'Transport & Mobility', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
-        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa, Dalībasmaksa', 'active': True},
-        {'name': 'Project Funding / Grants', 'keywords': 'NVA, Erasmus, Līgums, 4.3.3.2, 8.3-8.1', 'active': True},
-        {'name': 'Professional Services', 'keywords': 'Rēķins, Invoice, YF2026, YF2025', 'active': True},
-        {'name': 'Education & Training', 'keywords': 'Lekcija, Nodarbība, Kursi, Valoda, Zanjatija', 'active': True},
-        {'name': 'Bank & Finance', 'keywords': 'Komisija, Apkalpošanas maksa, Internetbankas', 'active': True},
-        {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True},
-        {'name': 'Administrative', 'keywords': 'Opening balance, Closing balance, Turnover', 'active': True}
+        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
+        {'name': 'Project Funding / Grants', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
+        {'name': 'Professional Services', 'keywords': 'Rēķins, Invoice', 'active': True},
+        {'name': 'Education & Training', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
+        {'name': 'Bank & Finance', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
+        {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
     ]
 
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
         {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
-        {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1, Līgums', 'active': True}
+        {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
     ]
 
 # --- 3. SIDEBAR ---
@@ -127,40 +129,39 @@ def classify(text, rules):
 if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
-        
-        # Explicit mapping for your bank's CSV structure
-        # Col 0: Account, Col 2: Date, Col 3: Partner, Col 4: Purpose, Col 5: Amount, Col 7: Sign
         df.rename(columns={0:'Account', 2:'Date', 3:'Partner', 4:'Purpose', 5:'Amount', 7:'Sign'}, inplace=True)
-        
-        # Clean Partner and Search string
         df['Partner'] = df['Partner'].apply(clean_name)
-        # Search combined Partner + Purpose
         search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
-        
-        # Categorize
         df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
         df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
         df['Commentary'] = ""
-        
-        # Output columns selection
-        cols_to_show = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-        
-        # Remove Balances
         df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums|Apgrozījums', case=False, na=False)]
         
-        credit = df[df['Sign'] == 'K'][cols_to_show]
-        debit = df[df['Sign'] == 'D'][cols_to_show]
+        cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
         
-        st.success(t["success"].format(len(credit), len(debit)))
-        tab1, tab2 = st.tabs([t["credit_title"], t["debit_title"]])
-        with tab1: st.dataframe(credit, use_container_width=True)
-        with tab2: st.dataframe(debit, use_container_width=True)
+        st.success(t["success"].format(len(df[df['Sign'] == 'K']), len(df[df['Sign'] == 'D'])))
+        st.dataframe(df[cols], use_container_width=True)
+
+        st.divider()
+        st.subheader(t["download_mode"])
+        mode = st.radio("Selection", [t["mode_sign"], t["mode_proj"]], label_visibility="collapsed")
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            credit.to_excel(writer, index=False, sheet_name='Credit')
-            debit.to_excel(writer, index=False, sheet_name='Debit')
-        
+            if mode == t["mode_sign"]:
+                df[df['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name='Credit')
+                df[df['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name='Debit')
+            else:
+                unique_projects = [r['name'] for r in st.session_state.proj_rules if r['active'] and r['name']]
+                for project in unique_projects:
+                    proj_df = df[df['Project Name'] == project][cols]
+                    if not proj_df.empty:
+                        proj_df.to_excel(writer, index=False, sheet_name=project[:31])
+                
+                general_df = df[df['Project Name'] == ""][cols]
+                if not general_df.empty:
+                    general_df.to_excel(writer, index=False, sheet_name='General')
+
         st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")
     except Exception as e:
         st.error(f"Error: {e}")

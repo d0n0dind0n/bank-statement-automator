@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 
-# --- 1. LANGUAGE DICTIONARY ---
+# --- 1. LANGUAGE DICTIONARY (Updated Labels) ---
 LANGUAGES = {
     "English": {
         "title": "🏦 Bank Automator", 
@@ -11,8 +11,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_sign": "By Project",        # Should result in 2 sheets total
-        "m_proj": "By Debit/Credit",   # Should result in many sheets (Project + Sign)
+        "m_proj": "By Project",        # Detailed (Many Sheets)
+        "m_sign": "By Debit/Credit",   # General (2 Sheets)
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -22,8 +22,8 @@ LANGUAGES = {
         "proj": "📁 PROJEKTS", 
         "add_rule": "➕ Pievienot noteikumu", 
         "mode": "Excel formāts", 
-        "m_sign": "Pa Projektiem", 
-        "m_proj": "Pa Debetu/Kredītu", 
+        "m_proj": "Pa Projektiem", 
+        "m_sign": "Pa Debetu/Kredītu", 
         "dl": "📥 Lejupielādēt"
     },
     "Русский": {
@@ -33,8 +33,8 @@ LANGUAGES = {
         "proj": "📁 ПРОЕКТ", 
         "add_rule": "➕ Добавить правило", 
         "mode": "Формат Excel", 
-        "m_sign": "По Проектам", 
-        "m_proj": "По Дебету/Кредиту", 
+        "m_proj": "По Проектам", 
+        "m_sign": "По Дебету/Кредиту", 
         "dl": "📥 Скачать Excel"
     }
 }
@@ -101,7 +101,7 @@ with st.sidebar:
     except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. MAIN LOGIC & EXPORT ---
+# --- 5. PROCESSING & EXPORT ---
 st.title(t["title"])
 file = st.file_uploader(t["upload"], type="csv")
 
@@ -132,44 +132,39 @@ if file:
         st.dataframe(df_proc.drop(columns=['_Sign']), use_container_width=True)
 
         st.divider()
-        mode = st.radio(t["mode"], [t["m_sign"], t["m_proj"]])
+        mode = st.radio(t["mode"], [t["m_proj"], t["m_sign"]]) # Swapped radio order
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
-            if mode == t["m_sign"]:
-                # LOGIC: "By Project" Button -> Just Income and Expenses (2 sheets total)
-                for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
-                    subset = df_proc[df_proc['_Sign'] == sign].copy()
-                    if not subset.empty:
-                        subset[cols].to_excel(writer, index=False, sheet_name=s_name)
-            
-            else:
-                # LOGIC: "By Debit/Credit" Button -> Separate sheets for every project's income and expenses
-                # Process active projects
+            if mode == t["m_proj"]:
+                # --- DETAILED PROJECT MODE (Many Sheets) ---
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
                         if not p_df.empty:
-                            # Project Income
-                            p_inc = p_df[p_df['_Sign'] == 'K']
-                            if not p_inc.empty:
-                                p_inc[cols].to_excel(writer, index=False, sheet_name=f"{p_rule['name']} Income"[:31])
-                            # Project Expenses
-                            p_exp = p_df[p_df['_Sign'] == 'D']
-                            if not p_exp.empty:
-                                p_exp[cols].to_excel(writer, index=False, sheet_name=f"{p_rule['name']} Expenses"[:31])
+                            for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
+                                final_df = p_df[p_df['_Sign'] == sign]
+                                if not final_df.empty:
+                                    sheet_name = f"{p_rule['name']} {s_label}"[:31]
+                                    final_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
                 
-                # Process NA (Anything not assigned to a project)
+                # NA lists for items with no project
                 na_df = df_proc[df_proc['Project Name'] == ""]
                 if not na_df.empty:
-                    na_inc = na_df[na_df['_Sign'] == 'K']
-                    if not na_inc.empty:
-                        na_inc[cols].to_excel(writer, index=False, sheet_name="NA Income")
-                    na_exp = na_df[na_df['_Sign'] == 'D']
-                    if not na_exp.empty:
-                        na_exp[cols].to_excel(writer, index=False, sheet_name="NA Expenses")
+                    for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
+                        final_na = na_df[na_df['_Sign'] == sign]
+                        if not final_na.empty:
+                            sheet_name = f"NA {s_label}"[:31]
+                            final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
+            
+            else:
+                # --- GENERAL DEBIT/CREDIT MODE (2 Sheets) ---
+                for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
+                    subset = df_proc[df_proc['_Sign'] == sign].copy()
+                    if not subset.empty:
+                        subset[cols].to_excel(writer, index=False, sheet_name=s_name)
 
         st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

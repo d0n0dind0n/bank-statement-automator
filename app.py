@@ -10,13 +10,14 @@ LANGUAGES = {
         "rule_manager": "Rule Manager",
         "cat_header": "📁 CATEGORIES",
         "proj_header": "📁 PROJECTS",
+        "gen_header": "📁 GENERAL RULES",
         "add_btn": "➕ Add New Rule",
         "name": "Name",
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
         "download_mode": "Excel Format",
         "mode_sign": "By Debit/Credit",
-        "mode_proj": "By Projects",
+        "mode_proj": "By Projects & Rules",
         "download_btn": "📥 Download Excel",
         "reset": "♻️ Reset"
     },
@@ -26,13 +27,14 @@ LANGUAGES = {
         "rule_manager": "Noteikumu vadība",
         "cat_header": "📁 KATEGORIJAS",
         "proj_header": "📁 PROJEKTI",
+        "gen_header": "📁 VISPĀRĪGI NOTEIKUMI",
         "add_btn": "➕ Pievienot jaunu",
         "name": "Nosaukums",
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
         "download_mode": "Excel formāts",
         "mode_sign": "Pa Debetu/Kredītu",
-        "mode_proj": "Pa projektiem",
+        "mode_proj": "Pa projektiem un noteikumiem",
         "download_btn": "📥 Lejupielādēt Excel",
         "reset": "♻️ Atiestatīt"
     }
@@ -43,54 +45,44 @@ st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    /* Makes text and buttons scale based on sidebar width */
+    /* Responsive Text: Scales based on sidebar width using clamp */
     [data-testid="stSidebar"] .stText, 
     [data-testid="stSidebar"] label, 
     [data-testid="stSidebar"] button p {
-        font-size: 0.9vw !important; 
-        min-font-size: 12px;
+        font-size: clamp(12px, 1vw, 20px) !important;
     }
     [data-testid="stSidebar"] input {
-        font-size: 1vw !important;
+        font-size: clamp(14px, 1.1vw, 22px) !important;
         font-weight: bold !important;
     }
-    section[data-testid="stSidebar"] {
-        min-width: 250px;
-        max-width: 600px;
-    }
+    /* Button styling */
     .stButton button {
         width: 100%;
+        border-radius: 8px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE (Restoring All Original Data) ---
+# --- 3. SESSION STATE (Rule Storage) ---
 if 'cat_rules' not in st.session_state:
-    st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
-        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
-        {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
-        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
-        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
-        {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
-    ]
+    st.session_state.cat_rules = [{'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True}]
 
 if 'proj_rules' not in st.session_state:
-    st.session_state.proj_rules = [
-        {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība, Kursi', 'active': True},
-        {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
-        {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
-    ]
+    st.session_state.proj_rules = [{'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}]
+
+if 'gen_rules' not in st.session_state:
+    st.session_state.gen_rules = [{'name': 'Taxes', 'keywords': 'VID, Nodoklis', 'active': True}]
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
+    # Logo based on your uploaded image
     try:
         st.image("YoungFolks-circle-42.png", use_container_width=True)
     except:
-        pass
+        st.write("### YOUNG FOLKS")
 
     st.divider()
     
@@ -100,43 +92,42 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
     
-    # MASTER CATEGORIES
-    with st.expander(t["cat_header"], expanded=False):
-        for i, rule in enumerate(st.session_state.cat_rules):
+    # Helper function to render rule UI
+    def render_rules(rule_list, key_prefix):
+        for i, rule in enumerate(rule_list):
             c1, c2, c3 = st.columns([0.7, 3, 0.7])
-            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"c_on_{i}", label_visibility="collapsed")
-            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"c_n_{i}", label_visibility="collapsed")
-            if c3.button("🗑️", key=f"c_del_{i}"):
-                st.session_state.cat_rules.pop(i)
+            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"{key_prefix}_on_{i}", label_visibility="collapsed")
+            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"{key_prefix}_n_{i}", label_visibility="collapsed")
+            if c3.button("🗑️", key=f"{key_prefix}_del_{i}"):
+                rule_list.pop(i)
                 st.rerun()
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}", height=70)
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"{key_prefix}_k_{i}", height=70)
             st.divider()
-        if st.button(t["add_btn"], key="add_cat_main"):
+
+    # SECTION 1: CATEGORIES
+    with st.expander(t["cat_header"]):
+        render_rules(st.session_state.cat_rules, "cat")
+        if st.button(t["add_btn"], key="add_cat_btn"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
             st.rerun()
 
-    # MASTER PROJECTS
-    with st.expander(t["proj_header"], expanded=False):
-        for i, rule in enumerate(st.session_state.proj_rules):
-            p1, p2, p3 = st.columns([0.7, 3, 0.7])
-            rule['active'] = p1.checkbox("On", value=rule['active'], key=f"p_on_{i}", label_visibility="collapsed")
-            rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"p_n_{i}", label_visibility="collapsed")
-            if p3.button("🗑️", key=f"p_del_{i}"):
-                st.session_state.proj_rules.pop(i)
-                st.rerun()
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}", height=70)
-            st.divider()
-        if st.button(t["add_btn"], key="add_proj_main"):
+    # SECTION 2: PROJECTS
+    with st.expander(t["proj_header"]):
+        render_rules(st.session_state.proj_rules, "proj")
+        if st.button(t["add_btn"], key="add_proj_btn"):
             st.session_state.proj_rules.append({'name': 'New Project', 'keywords': '', 'active': True})
             st.rerun()
 
-# --- 5. PROCESSING LOGIC ---
+    # SECTION 3: GENERAL RULES (Added as per your request)
+    with st.expander(t["gen_header"]):
+        render_rules(st.session_state.gen_rules, "gen")
+        if st.button(t["add_btn"], key="add_gen_btn"):
+            st.session_state.gen_rules.append({'name': 'New General Rule', 'keywords': '', 'active': True})
+            st.rerun()
+
+# --- 5. MAIN LOGIC ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
-
-def clean_name(text):
-    if pd.isna(text) or text == "": return ""
-    return str(text).split('|')[0].strip() if '|' in str(text) else str(text).strip()
 
 def classify(text, rules):
     text = str(text).lower()
@@ -150,14 +141,17 @@ if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df.rename(columns={0:'Account', 2:'Date', 3:'Partner', 4:'Purpose', 5:'Amount', 7:'Sign'}, inplace=True)
-        df['Partner'] = df['Partner'].apply(clean_name)
+        
         search_col = df['Partner'].fillna('') + " " + df['Purpose'].fillna('')
         df['Category'] = search_col.apply(lambda x: classify(x, st.session_state.cat_rules))
         df['Project Name'] = search_col.apply(lambda x: classify(x, st.session_state.proj_rules))
+        df['General Rule'] = search_col.apply(lambda x: classify(x, st.session_state.gen_rules))
         df['Commentary'] = ""
+        
+        # Filter out balance turnover rows
         df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums|Apgrozījums', case=False, na=False)]
         
-        cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+        cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'General Rule', 'Commentary']
         st.success(t["success"].format(len(df[df['Sign'] == 'K']), len(df[df['Sign'] == 'D'])))
         st.dataframe(df[cols], use_container_width=True)
 
@@ -170,21 +164,29 @@ if uploaded_file is not None:
                 df[df['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name='Credit')
                 df[df['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name='Debit')
             else:
-                # Loop through custom projects to create sheets
-                unique_projects = [r['name'] for r in st.session_state.proj_rules if r['active'] and r['name']]
-                for project in unique_projects:
-                    p_df = df[df['Project Name'] == project]
-                    if not p_df.empty:
-                        safe = project[:24].replace('/', '_')
-                        p_df[p_df['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name=f"{safe} CR")
-                        p_df[p_df['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name=f"{safe} DB")
+                # Combine Projects and General Rules for sheet creation
+                all_rule_sets = [
+                    (st.session_state.proj_rules, 'Project Name'),
+                    (st.session_state.gen_rules, 'General Rule')
+                ]
                 
-                # General Catch-all
-                gen = df[df['Project Name'] == ""]
-                if not gen.empty:
-                    gen[gen['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name='General CR')
-                    gen[gen['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name='General DB')
+                found_any = False
+                for rule_list, col_name in all_rule_sets:
+                    active_names = [r['name'] for r in rule_list if r['active'] and r['name']]
+                    for name in active_names:
+                        sub_df = df[df[col_name] == name]
+                        if not sub_df.empty:
+                            safe = name[:24].replace('/', '_')
+                            sub_df[sub_df['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name=f"{safe} CR")
+                            sub_df[sub_df['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name=f"{safe} DB")
+                            found_any = True
+                
+                # General Catch-all (anything not classified by project or general rule)
+                catch_all = df[(df['Project Name'] == "") & (df['General Rule'] == "")]
+                if not catch_all.empty:
+                    catch_all[catch_all['Sign'] == 'K'][cols].to_excel(writer, index=False, sheet_name='Unclassified CR')
+                    catch_all[catch_all['Sign'] == 'D'][cols].to_excel(writer, index=False, sheet_name='Unclassified DB')
 
-        st.download_button(t["download_btn"], output.getvalue(), "Report.xlsx")
+        st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:
         st.error(f"Error: {e}")

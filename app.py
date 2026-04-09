@@ -54,7 +54,7 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & CSS ---
+# --- 2. CONFIG & STYLING ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
@@ -62,16 +62,14 @@ st.markdown("""
     .logo-container-bottom { display: flex; justify-content: center; padding-top: 50px; padding-bottom: 20px; }
     .logo-container-bottom img { width: 100px; height: 100px; object-fit: contain; }
     .stButton button { width: 100% !important; border-radius: 8px; }
-    /* Compact Sidebar Column Styling */
     div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; align-items: center !important; }
-    [data-testid="column"] { padding-left: 2px !important; padding-right: 2px !important; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
         {'name': 'Bank Fees', 'keywords': 'Komisija', 'active': True}
     ]
 
@@ -93,7 +91,7 @@ with st.sidebar:
     if r_col.button(t["reset"]):
         st.session_state.clear(); st.rerun()
 
-    # CATEGORIES SECTION
+    # CATEGORIES
     with st.expander(t["cat_header"]):
         for i, rule in enumerate(st.session_state.cat_rules):
             c1, c2, c3 = st.columns([0.4, 3, 0.5])
@@ -106,7 +104,7 @@ with st.sidebar:
         if st.button(t["add_rule_btn"], key="add_cat"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True}); st.rerun()
 
-    # PROJECTS SECTION (Individual lists for NVA Credit, NVA Debit, etc.)
+    # PROJECTS (Lists for NVA Credit, NVA Debit, etc.)
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
             l1, l2 = st.columns([3, 1])
@@ -132,7 +130,7 @@ with st.sidebar:
     except: st.write("Young Folks")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. MAIN LOGIC ---
+# --- 5. MAIN CONTENT & EXPORT ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
@@ -148,7 +146,7 @@ if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         
-        # Prepare Data Structure
+        # Build Table with your requested columns
         df_proc = pd.DataFrame()
         df_proc['Account'] = df[0]
         df_proc['Date'] = df[2]
@@ -168,27 +166,25 @@ if uploaded_file is not None:
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            export_df = df_proc.copy()
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["mode_sign"]:
-                # Logic: Separate sheets for Income (K) and Expenses (D)
+                # Sheet per Debit/Credit
                 for s, sheet_name in [('K', 'Income'), ('D', 'Expenses')]:
-                    subset = export_df[export_df['_Sign'] == s].copy()
+                    subset = df_proc[df_proc['_Sign'] == s].copy()
                     subset['Project Name'] = ""
                     subset[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             else:
-                # Logic: Every List (NVA Credit, NVA Debit, etc.) gets its own Sheet
+                # SHEET PER LIST (e.g., NVA DEBIT and NVA CREDIT will be separate sheets)
                 for r_list in st.session_state.custom_lists:
-                    # Filter rows matching rules within THIS specific list
-                    df_proj = export_df.copy()
+                    df_proj = df_proc.copy()
                     df_proj['Project Name'] = search_col.apply(lambda x: classify(x, r_list['rules']))
                     
+                    # Filter rows matching this specific list's rules
                     final_subset = df_proj[df_proj['Project Name'] != ""].copy()
                     
                     if not final_subset.empty:
-                        # Sheet name is the List title (e.g. "NVA CREDIT")
-                        sheet_name = str(r_list['title'])[:31].replace('[', '').replace(']', '')
+                        sheet_name = str(r_list['title'])[:31].strip()
                         final_subset[cols].to_excel(writer, index=False, sheet_name=sheet_name)
 
         st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")

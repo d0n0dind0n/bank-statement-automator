@@ -62,9 +62,9 @@ st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    /* Remove the weird scaling and return to normal sizes */
+    /* Normal base size */
     html, body, [class*="st-"] {
-        font-size: 16px; /* Normal base size */
+        font-size: 16px;
     }
 
     /* Tighten horizontal spacing for the Rule Row specifically */
@@ -79,14 +79,9 @@ st.markdown("""
         padding-right: 2px !important;
     }
 
-    /* Keep the Rule Name and Trash aligned vertically */
-    .stTextInput {
+    /* Vertical alignment for trash can */
+    button[kind="secondary"] {
         margin-top: 0px !important;
-    }
-
-    /* Tighten vertical space between rules slightly without breaking layout */
-    .st-emotion-cache-18ni7ap { 
-        padding: 0.8rem !important; 
     }
 
     /* Logo at bottom center */
@@ -102,7 +97,6 @@ st.markdown("""
         object-fit: contain;
     }
 
-    /* Buttons look better with consistent rounding */
     .stButton button { width: 100% !important; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
@@ -132,13 +126,11 @@ if 'custom_lists' not in st.session_state:
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    # 1. Language Picker (Top Left)
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
     st.divider()
     
-    # Rule Manager Header
     h_col, r_col = st.columns([2, 1])
     h_col.subheader(t["rule_manager"])
     if r_col.button(t["reset"]):
@@ -148,7 +140,6 @@ with st.sidebar:
     # SECTION: CATEGORIES
     with st.expander(t["cat_header"], expanded=True):
         for i, rule in enumerate(st.session_state.cat_rules):
-            # Row for Checkbox | Name | Delete
             c1, c2, c3 = st.columns([0.3, 3, 0.5]) 
             rule['active'] = c1.checkbox("", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
             rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
@@ -156,7 +147,6 @@ with st.sidebar:
                 st.session_state.cat_rules.pop(i)
                 st.rerun()
             
-            # Keywords area
             rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=70)
             st.divider()
         if st.button(t["add_rule_btn"], key="add_cat"):
@@ -191,7 +181,6 @@ with st.sidebar:
         st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
         st.rerun()
 
-    # 2. Logo at Center Bottom
     st.markdown('<div class="logo-container-bottom">', unsafe_allow_html=True)
     try:
         st.image("YoungFolks-circle-42.png")
@@ -229,13 +218,22 @@ if uploaded_file is not None:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["mode_sign"]:
+                # Logic: Sheets based on Credit (K) or Debit (D)
                 df[df['Sign'] == 'K'].to_excel(writer, index=False, sheet_name='Income')
                 df[df['Sign'] == 'D'].to_excel(writer, index=False, sheet_name='Expenses')
             else:
+                # Logic: Separate sheet for every single classified project/category
+                # 1. Categories
+                for name in df[df['Category'] != ""]['Category'].unique():
+                    df[df['Category'] == name].to_excel(writer, index=False, sheet_name=str(name)[:31])
+                # 2. Project lists
                 for r_list in st.session_state.custom_lists:
                     col = r_list['title']
                     for name in df[df[col] != ""][col].unique():
-                        df[df[col] == name].to_excel(writer, index=False, sheet_name=str(name)[:31])
+                        # Prevent duplicate sheet names if name exists in Categories
+                        sheet_name = str(name)[:31]
+                        if sheet_name not in writer.sheets:
+                            df[df[col] == name].to_excel(writer, index=False, sheet_name=sheet_name)
 
         st.download_button(t["download_btn"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

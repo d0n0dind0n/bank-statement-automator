@@ -57,70 +57,53 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & SYNCED SCALING CSS ---
+# --- 2. CONFIG & CLEAN UI CSS ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    /* 1. Global Scaling for Sidebar */
-    [data-testid="stSidebarContent"] {
-        container-type: inline-size;
+    /* Remove the weird scaling and return to normal sizes */
+    html, body, [class*="st-"] {
+        font-size: 16px; /* Normal base size */
     }
 
-    /* Scaling both Font AND Icons based on container width */
-    @container (min-width: 0px) {
-        [data-testid="stSidebarContent"] * { font-size: calc(11px + 0.1cqw) !important; }
-        [data-testid="stSidebarContent"] svg { width: 1.1rem !important; height: 1.1rem !important; }
-    }
-    @container (min-width: 450px) {
-        [data-testid="stSidebarContent"] * { font-size: calc(13px + 0.5cqw) !important; }
-        [data-testid="stSidebarContent"] svg { width: 1.4rem !important; height: 1.4rem !important; }
-    }
-
-    /* 2. Alignment & Tight Spacing */
+    /* Tighten horizontal spacing for the Rule Row specifically */
     div[data-testid="stHorizontalBlock"] {
-        gap: 0.1rem !important;
+        gap: 0.5rem !important;
         align-items: center !important;
     }
     
+    /* Ensure Checkbox and Trash don't have huge side margins */
     [data-testid="column"] {
-        padding-left: 1px !important;
-        padding-right: 1px !important;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
     }
 
-    /* Pull elements closer vertically */
-    .stTextInput, .stTextArea, .stCheckbox {
-        margin-bottom: -1.3rem !important;
+    /* Keep the Rule Name and Trash aligned vertically */
+    .stTextInput {
+        margin-top: 0px !important;
     }
 
-    /* Sync Trash Button Height with Font */
-    button[kind="secondary"] {
-        margin-top: 1.3rem !important;
-        padding: 0px !important;
-        min-height: 2rem !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+    /* Tighten vertical space between rules slightly without breaking layout */
+    .st-emotion-cache-18ni7ap { 
+        padding: 0.8rem !important; 
     }
 
-    /* Remove expander padding bloat */
-    .st-emotion-cache-p4mowd {
-        padding: 0.3rem 0.5rem !important;
-    }
-
-    /* Logo at bottom */
+    /* Logo at bottom center */
     .logo-container-bottom {
         display: flex;
         justify-content: center;
-        margin-top: 25px;
+        margin-top: 30px;
+        padding-bottom: 20px;
     }
     .logo-container-bottom img {
-        width: 80px;
-        height: 80px;
+        width: 100px;
+        height: 100px;
         object-fit: contain;
     }
 
-    .stButton button { width: 100% !important; border-radius: 4px; }
+    /* Buttons look better with consistent rounding */
+    .stButton button { width: 100% !important; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -149,34 +132,38 @@ if 'custom_lists' not in st.session_state:
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
+    # 1. Language Picker (Top Left)
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
     st.divider()
     
-    h_col, r_col = st.columns([2.5, 1])
-    h_col.markdown(f"### {t['rule_manager']}")
+    # Rule Manager Header
+    h_col, r_col = st.columns([2, 1])
+    h_col.subheader(t["rule_manager"])
     if r_col.button(t["reset"]):
         st.session_state.clear()
         st.rerun()
 
-    # CATEGORIES SECTION
+    # SECTION: CATEGORIES
     with st.expander(t["cat_header"], expanded=True):
         for i, rule in enumerate(st.session_state.cat_rules):
-            c1, c2, c3 = st.columns([0.25, 3, 0.45]) 
+            # Row for Checkbox | Name | Delete
+            c1, c2, c3 = st.columns([0.3, 3, 0.5]) 
             rule['active'] = c1.checkbox("", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
-            rule['name'] = c2.text_input("", value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
+            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"cat_n_{i}", label_visibility="collapsed")
             if c3.button("🗑️", key=f"cat_del_{i}"):
                 st.session_state.cat_rules.pop(i)
                 st.rerun()
             
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=65)
+            # Keywords area
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"cat_k_{i}", height=70)
             st.divider()
         if st.button(t["add_rule_btn"], key="add_cat"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
             st.rerun()
 
-    # DYNAMIC LISTS SECTION
+    # SECTION: DYNAMIC LISTS
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
             col_lt, col_ld = st.columns([3, 1])
@@ -187,13 +174,13 @@ with st.sidebar:
             
             st.divider()
             for i, rule in enumerate(r_list['rules']):
-                p1, p2, p3 = st.columns([0.25, 3, 0.45])
+                p1, p2, p3 = st.columns([0.3, 3, 0.5])
                 rule['active'] = p1.checkbox("", value=rule['active'], key=f"l_{idx}_on_{i}", label_visibility="collapsed")
-                rule['name'] = p2.text_input("", value=rule['name'], key=f"l_{idx}_n_{i}", label_visibility="collapsed")
+                rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"l_{idx}_n_{i}", label_visibility="collapsed")
                 if p3.button("🗑️", key=f"l_{idx}_del_{i}"):
                     r_list['rules'].pop(i)
                     st.rerun()
-                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=65)
+                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"l_{idx}_k_{i}", height=70)
                 st.divider()
             
             if st.button(t["add_rule_btn"], key=f"ar_{idx}"):
@@ -204,7 +191,7 @@ with st.sidebar:
         st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
         st.rerun()
 
-    # Logo Bottom Center
+    # 2. Logo at Center Bottom
     st.markdown('<div class="logo-container-bottom">', unsafe_allow_html=True)
     try:
         st.image("YoungFolks-circle-42.png")

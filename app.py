@@ -17,10 +17,12 @@ LANGUAGES = {
         "keywords": "Keywords",
         "success": "Processed: {} Income and {} Expenses",
         "download_mode": "Choose Excel Format",
-        "mode_sign": "Separated by Debit/Credit",
-        "mode_proj": "Separated by Projects",
+        "mode_sign": "Separated by Debit/Credit (Total)",
+        "mode_proj": "Separated by Projects (Split Debit/Credit)",
         "download_btn": "📥 Download Excel File",
-        "reset": "♻️ Reset App"
+        "reset": "♻️ Reset App",
+        "credit_title": "Income",
+        "debit_title": "Expenses"
     },
     "Latviešu": {
         "title": "🏦 Bankas izrakstu automatizācija",
@@ -35,10 +37,12 @@ LANGUAGES = {
         "keywords": "Atslēgvārdi",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
         "download_mode": "Izvēlieties Excel formātu",
-        "mode_sign": "Atdalīts pēc Debeta/Kredīta",
-        "mode_proj": "Atdalīts pēc projektiem",
+        "mode_sign": "Atdalīts pēc Debeta/Kredīta (Kopā)",
+        "mode_proj": "Atdalīts pēc projektiem (Atsevišķi Debets/Kredīts)",
         "download_btn": "📥 Lejupielādēt Excel failu",
-        "reset": "♻️ Atiestatīt"
+        "reset": "♻️ Atiestatīt",
+        "credit_title": "Ienākumi",
+        "debit_title": "Izdevumi"
     },
     "Русский": {
         "title": "🏦 Автоматизация банковских выписок",
@@ -53,23 +57,65 @@ LANGUAGES = {
         "keywords": "Ключевые слова",
         "success": "Обработано: {} доходов и {} расходов",
         "download_mode": "Выберите формат Excel",
-        "mode_sign": "Разделение по Дебету/Кредиту",
-        "mode_proj": "Разделение по проектам",
+        "mode_sign": "Разделение по Дебету/Кредиту (Общее)",
+        "mode_proj": "Разделение по проектам (Отдельно Дебет/Кредит)",
         "download_btn": "📥 Скачать Excel файл",
-        "reset": "♻️ Сбросить"
+        "reset": "♻️ Сбросить",
+        "credit_title": "Доходы",
+        "debit_title": "Расходы"
     }
 }
 
-# --- 2. CONFIG & SESSION STATE ---
-st.set_page_config(page_title="Bank Automator", layout="wide")
+# --- 2. PAGE SETUP & STYLING ---
+st.set_page_config(page_title="Young Folks Bank Automator", layout="wide")
 
+# Custom CSS to mimic Young Folks website style
+st.markdown("""
+    <style>
+    /* Main Background */
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    /* Headers */
+    h1 {
+        color: #343a40 !important;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-weight: 700;
+    }
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+        border-right: 1px solid #dee2e6;
+    }
+    /* Buttons */
+    .stButton>button {
+        border-radius: 5px;
+        border: 1px solid #dee2e6;
+        background-color: #ffffff;
+        transition: all 0.3s;
+    }
+    .stButton>button:hover {
+        border-color: #adb5bd;
+        background-color: #f8f9fa;
+    }
+    /* Dataframe styling */
+    [data-testid="stDataFrame"] {
+        background-color: white;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
         {'name': 'Transport & Mobility', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
         {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
         {'name': 'Project Funding / Grants', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
         {'name': 'Professional Services', 'keywords': 'Rēķins, Invoice', 'active': True},
-        {'name': 'Education & Training', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
+        {'name': 'Education & Training', 'keywords': 'Lekcija, Nodarbība, Kursi, Valoda, Zanjatija', 'active': True},
         {'name': 'Bank & Finance', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
         {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
     ]
@@ -80,7 +126,7 @@ if 'proj_rules' not in st.session_state:
         {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
     ]
 
-# --- 3. SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
     t = LANGUAGES[selected_lang]
@@ -110,7 +156,7 @@ with st.sidebar:
         st.session_state.proj_rules.append({'name': '', 'keywords': '', 'active': True})
         st.rerun()
 
-# --- 4. MAIN APP ---
+# --- 5. MAIN APP ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
@@ -154,13 +200,19 @@ if uploaded_file is not None:
             else:
                 unique_projects = [r['name'] for r in st.session_state.proj_rules if r['active'] and r['name']]
                 for project in unique_projects:
-                    proj_df = df[df['Project Name'] == project][cols]
+                    proj_df = df[df['Project Name'] == project]
                     if not proj_df.empty:
-                        proj_df.to_excel(writer, index=False, sheet_name=project[:31])
+                        p_credit = proj_df[proj_df['Sign'] == 'K'][cols]
+                        p_debit = proj_df[proj_df['Sign'] == 'D'][cols]
+                        safe_name = project[:24] 
+                        if not p_credit.empty: p_credit.to_excel(writer, index=False, sheet_name=f"{safe_name} Credit")
+                        if not p_debit.empty: p_debit.to_excel(writer, index=False, sheet_name=f"{safe_name} Debit")
                 
-                general_df = df[df['Project Name'] == ""][cols]
-                if not general_df.empty:
-                    general_df.to_excel(writer, index=False, sheet_name='General')
+                gen_df = df[df['Project Name'] == ""]
+                if not gen_df.empty:
+                    gc, gd = gen_df[gen_df['Sign'] == 'K'][cols], gen_df[gen_df['Sign'] == 'D'][cols]
+                    if not gc.empty: gc.to_excel(writer, index=False, sheet_name='General Credit')
+                    if not gd.empty: gd.to_excel(writer, index=False, sheet_name='General Debit')
 
         st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")
     except Exception as e:

@@ -10,13 +10,13 @@ LANGUAGES = {
         "rule_manager": "Rule Manager",
         "cat_header": "📁 CATEGORIES",
         "proj_header": "📁 PROJECTS",
-        "add_btn": "➕ Add New",
+        "add_btn": "➕ Add Rule",
         "name": "Name",
         "keywords": "Keywords (comma separated)",
         "success": "Processed: {} Income and {} Expenses",
         "download_mode": "Choose Excel Format",
-        "mode_sign": "Separated by Debit/Credit",
-        "mode_proj": "Separated by Projects",
+        "mode_sign": "By Debit/Credit",
+        "mode_proj": "By Projects",
         "download_btn": "📥 Download Excel File",
         "reset": "♻️ Reset"
     },
@@ -26,13 +26,13 @@ LANGUAGES = {
         "rule_manager": "Noteikumu vadība",
         "cat_header": "📁 KATEGORIJAS",
         "proj_header": "📁 PROJEKTI",
-        "add_btn": "➕ Pievienot jaunu",
+        "add_btn": "➕ Pievienot noteikumu",
         "name": "Nosaukums",
-        "keywords": "Atslēgvārdi (atdalīti ar komatu)",
+        "keywords": "Atslēgvārdi (ar komatu)",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
         "download_mode": "Izvēlieties Excel formātu",
-        "mode_sign": "Atdalīts pēc Debeta/Kredīta",
-        "mode_proj": "Atdalīts pēc projektiem",
+        "mode_sign": "Pa Debetu/Kredītu",
+        "mode_proj": "Pa projektiem",
         "download_btn": "📥 Lejupielādēt Excel failu",
         "reset": "♻️ Atiestatīt"
     },
@@ -42,13 +42,13 @@ LANGUAGES = {
         "rule_manager": "Управление правилами",
         "cat_header": "📁 КАТЕГОРИИ",
         "proj_header": "📁 ПРОЕКТЫ",
-        "add_btn": "➕ Добавить",
+        "add_btn": "➕ Добавить правило",
         "name": "Название",
         "keywords": "Ключевые слова (через запятую)",
         "success": "Обработано: {} доходов и {} расходов",
         "download_mode": "Выберите формат Excel",
-        "mode_sign": "Разделение по Дебету/Кредиту",
-        "mode_proj": "Разделение по проектам",
+        "mode_sign": "По Дебету/Кредиту",
+        "mode_proj": "По проектам",
         "download_btn": "📥 Скачать Excel файл",
         "reset": "♻️ Сброс"
     }
@@ -57,21 +57,16 @@ LANGUAGES = {
 # --- 2. CONFIG & SESSION STATE ---
 st.set_page_config(page_title="Young Folks Bank Automator", layout="wide")
 
+# Default Rules
 if 'cat_rules' not in st.session_state:
-    st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
-        {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
-    ]
+    st.session_state.cat_rules = [{'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True}]
 
 if 'proj_rules' not in st.session_state:
-    st.session_state.proj_rules = [
-        {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība', 'active': True},
-        {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}
-    ]
+    st.session_state.proj_rules = [{'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība', 'active': True}]
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    # 1. Language Picker at the top left
+    # Language Picker (Top Left)
     selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
@@ -83,40 +78,45 @@ with st.sidebar:
 
     st.divider()
     
-    # 2. Rule Manager Header + Reset Button side-by-side
-    header_col, reset_col = st.columns([2, 1])
-    header_col.subheader(t["rule_manager"])
-    if reset_col.button(t["reset"]):
+    # Rule Manager Header + Reset
+    h_col, r_col = st.columns([2, 1])
+    h_col.subheader(t["rule_manager"])
+    if r_col.button(t["reset"], use_container_width=True):
         st.session_state.clear()
         st.rerun()
     
     # --- CATEGORIES SECTION ---
     with st.expander(t["cat_header"], expanded=False):
         for i, rule in enumerate(st.session_state.cat_rules):
-            c1, c2, c3 = st.columns([0.6, 3, 0.6])
+            # Layout adjusts as you drag the sidebar
+            c1, c2, c3 = st.columns([0.8, 3, 0.8])
             rule['active'] = c1.checkbox("On", value=rule['active'], key=f"c_on_{i}", label_visibility="collapsed")
             rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"c_n_{i}", label_visibility="collapsed")
             if c3.button("🗑️", key=f"c_del_{i}"):
                 st.session_state.cat_rules.pop(i)
                 st.rerun()
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}", height=68)
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}", height=70)
             st.divider()
-        if st.button(t["add_btn"], key="add_cat"):
+        
+        # Button to add more Categories
+        if st.button(t["add_btn"], key="add_cat_btn", use_container_width=True):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
             st.rerun()
 
     # --- PROJECTS SECTION ---
     with st.expander(t["proj_header"], expanded=False):
         for i, rule in enumerate(st.session_state.proj_rules):
-            p1, p2, p3 = st.columns([0.6, 3, 0.6])
+            p1, p2, p3 = st.columns([0.8, 3, 0.8])
             rule['active'] = p1.checkbox("On", value=rule['active'], key=f"p_on_{i}", label_visibility="collapsed")
             rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"p_n_{i}", label_visibility="collapsed")
             if p3.button("🗑️", key=f"p_del_{i}"):
                 st.session_state.proj_rules.pop(i)
                 st.rerun()
-            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}", height=68)
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}", height=70)
             st.divider()
-        if st.button(t["add_btn"], key="add_proj"):
+        
+        # Button to add more Projects
+        if st.button(t["add_btn"], key="add_proj_btn", use_container_width=True):
             st.session_state.proj_rules.append({'name': 'New Project', 'keywords': '', 'active': True})
             st.rerun()
 

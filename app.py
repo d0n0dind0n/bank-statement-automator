@@ -56,14 +56,14 @@ if 'cat_rules' not in st.session_state:
         {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE, Pasažieru vilciens', 'active': True},
         {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
         {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
-        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True}
+        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi, sarunvalodas', 'active': True}
     ]
 
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
         {'name': 'NVA', 'keywords': 'NVA', 'active': True},
         {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
-        {'name': 'Lessons', 'keywords': 'Lesson, Nodarbība', 'sarunvalodas', 'active': True}
+        {'name': 'Lessons', 'keywords': 'Lesson, Nodarbība, sarunvalodas', 'active': True}
     ]
 
 # --- 4. SIDEBAR ---

@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import io
-import re  # Added for exact word matching
+import re
 
-# --- 1. LANGUAGE DICTIONARY (Updated Labels) ---
+# --- 1. LANGUAGE DICTIONARY (Swapped labels to match desired behavior) ---
 LANGUAGES = {
     "English": {
         "title": "🏦 Bank Automator", 
@@ -12,8 +12,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_proj": "By Project",        # Detailed (Many Sheets)
-        "m_sign": "By Debit/Credit",   # General (2 Sheets)
+        "m_proj": "By Project",        # Now points to the Detailed Logic
+        "m_sign": "By Debit/Credit",   # Now points to the 2-Sheet Logic
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -106,7 +106,6 @@ with st.sidebar:
 st.title(t["title"])
 file = st.file_uploader(t["upload"], type="csv")
 
-# UPDATED: classify function with exact word matching logic
 def classify(text, rules):
     text = str(text).lower()
     for r in rules:
@@ -114,7 +113,6 @@ def classify(text, rules):
             keys = [k.strip().lower() for k in r['keywords'].split(',')]
             for k in keys:
                 if k:
-                    # \b ensures we only match the whole word (e.g. 'NVA' not in 'sarunvalodas')
                     pattern = rf"\b{re.escape(k)}\b"
                     if re.search(pattern, text):
                         return r['name']
@@ -139,14 +137,14 @@ if file:
         st.dataframe(df_proc.drop(columns=['_Sign']), use_container_width=True)
 
         st.divider()
-        mode = st.radio(t["mode"], [t["m_proj"], t["m_sign"]]) # Swapped radio order
+        mode = st.radio(t["mode"], [t["m_proj"], t["m_sign"]]) 
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["m_proj"]:
-                # --- DETAILED PROJECT MODE (Many Sheets) ---
+                # --- DETAILED PROJECT MODE (Now mapped to "By Project") ---
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
@@ -157,7 +155,6 @@ if file:
                                     sheet_name = f"{p_rule['name']} {s_label}"[:31]
                                     final_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
                 
-                # NA lists for items with no project
                 na_df = df_proc[df_proc['Project Name'] == ""]
                 if not na_df.empty:
                     for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
@@ -167,7 +164,7 @@ if file:
                             final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             
             else:
-                # --- GENERAL DEBIT/CREDIT MODE (2 Sheets) ---
+                # --- GENERAL MODE (Now mapped to "By Debit/Credit") ---
                 for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == sign].copy()
                     if not subset.empty:

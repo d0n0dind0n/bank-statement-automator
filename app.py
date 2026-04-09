@@ -62,22 +62,32 @@ st.markdown("""
     .logo-container-bottom { display: flex; justify-content: center; padding-top: 50px; padding-bottom: 20px; }
     .logo-container-bottom img { width: 100px; height: 100px; object-fit: contain; }
     .stButton button { width: 100% !important; border-radius: 8px; }
-    /* Compact Row Styling */
     div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; align-items: center !important; }
     [data-testid="column"] { padding-left: 2px !important; padding-right: 2px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE ---
+# --- 3. SESSION STATE (RESTORED PROJECTS) ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
-        {'name': 'Bank Fees', 'keywords': 'Komisija', 'active': True}
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE, Pasažieru vilciens', 'active': True},
+        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
+        {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
+        {'name': 'Education', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
+        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
+        {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
     ]
 
 if 'custom_lists' not in st.session_state:
     st.session_state.custom_lists = [
-        {'title': 'PROJECT_A', 'rules': [{'name': 'Inflow', 'keywords': 'Grant', 'active': True}, {'name': 'Outflow', 'keywords': 'Buy', 'active': True}]}
+        {
+            'title': 'PROJECTS', 
+            'rules': [
+                {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība, Kursi', 'active': True},
+                {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
+                {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
+            ]
+        }
     ]
 
 # --- 4. SIDEBAR ---
@@ -104,7 +114,7 @@ with st.sidebar:
         if st.button(t["add_rule_btn"], key="add_cat"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True}); st.rerun()
 
-    # DYNAMIC LISTS (PROJECTS)
+    # DYNAMIC PROJECTS
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
             l1, l2 = st.columns([3, 1])
@@ -146,7 +156,7 @@ if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         
-        # 1. Process Data
+        # Structure your specific columns
         df_proc = pd.DataFrame()
         df_proc['Account'] = df[0]
         df_proc['Date'] = df[2]
@@ -161,27 +171,21 @@ if uploaded_file is not None:
 
         st.dataframe(df_proc.drop(columns=['_Sign']), use_container_width=True)
 
-        # 2. Export Logic
         st.divider()
         mode = st.radio(t["download_mode"], [t["mode_sign"], t["mode_proj"]])
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["mode_sign"]:
-                # Logic: Separate sheets for Income (K) and Expenses (D)
                 for s, name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == s].copy()
-                    subset['Project Name'] = "" # Blank for sign mode
+                    subset['Project Name'] = ""
                     cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
                     subset[cols].to_excel(writer, index=False, sheet_name=name)
             else:
-                # Logic: One sheet per Custom List (Project)
                 for r_list in st.session_state.custom_lists:
-                    # Apply rules of this specific list to find project rows
                     df_proj = df_proc.copy()
                     df_proj['Project Name'] = search_col.apply(lambda x: classify(x, r_list['rules']))
-                    
-                    # Only take rows that matched a rule in THIS list
                     final_subset = df_proj[df_proj['Project Name'] != ""].copy()
                     
                     if not final_subset.empty:

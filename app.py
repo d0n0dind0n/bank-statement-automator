@@ -127,17 +127,17 @@ if file:
                             if not exp_df.empty:
                                 exp_df[cols].to_excel(writer, index=False, sheet_name=f"{p_rule['name']} Expenses"[:31])
                 
-                # 2. Handle N/A (Transactions NOT assigned to a project)
+                # 2. Handle NA (Transactions NOT assigned to a project)
                 na_df = df_proc[df_proc['Project Name'] == ""].copy()
                 if not na_df.empty:
-                    # N/A Income
+                    # NA Income
                     na_inc = na_df[na_df['_Sign'] == 'K']
                     if not na_inc.empty:
-                        na_inc[cols].to_excel(writer, index=False, sheet_name="N/A Income")
-                    # N/A Expenses
+                        na_inc[cols].to_excel(writer, index=False, sheet_name="NA Income")
+                    # NA Expenses
                     na_exp = na_df[na_df['_Sign'] == 'D']
                     if not na_exp.empty:
-                        na_exp[cols].to_excel(writer, index=False, sheet_name="N/A Expenses")
+                        na_exp[cols].to_excel(writer, index=False, sheet_name="NA Expenses")
 
         st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

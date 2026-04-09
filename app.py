@@ -7,26 +7,28 @@ LANGUAGES = {
     "English": {
         "title": "🏦 Bank Statement Automator",
         "upload_label": "Upload Bank CSV",
-        "rule_manager": "⚙️ Rule Manager",
+        "rule_manager": "Rule Manager",
         "cat_header": "📁 CATEGORIES",
         "proj_header": "📁 PROJECTS",
+        "add_btn": "➕ Add New",
         "name": "Name",
-        "keywords": "Keywords",
+        "keywords": "Keywords (comma separated)",
         "success": "Processed: {} Income and {} Expenses",
         "download_mode": "Choose Excel Format",
         "mode_sign": "Separated by Debit/Credit",
         "mode_proj": "Separated by Projects",
         "download_btn": "📥 Download Excel File",
-        "reset": "♻️ Reset App"
+        "reset": "♻️ Reset"
     },
     "Latviešu": {
         "title": "🏦 Bankas izrakstu automatizācija",
         "upload_label": "Augšupielādēt bankas CSV",
-        "rule_manager": "⚙️ Noteikumu vadība",
+        "rule_manager": "Noteikumu vadība",
         "cat_header": "📁 KATEGORIJAS",
         "proj_header": "📁 PROJEKTI",
+        "add_btn": "➕ Pievienot jaunu",
         "name": "Nosaukums",
-        "keywords": "Atslēgvārdi",
+        "keywords": "Atslēgvārdi (atdalīti ar komatu)",
         "success": "Apstrādāts: {} ienākumi un {} izdevumi",
         "download_mode": "Izvēlieties Excel formātu",
         "mode_sign": "Atdalīts pēc Debeta/Kredīta",
@@ -37,17 +39,18 @@ LANGUAGES = {
     "Русский": {
         "title": "🏦 Автоматизация банковских выписок",
         "upload_label": "Загрузить банковский CSV",
-        "rule_manager": "⚙️ Управление правилами",
+        "rule_manager": "Управление правилами",
         "cat_header": "📁 КАТЕГОРИИ",
         "proj_header": "📁 ПРОЕКТЫ",
+        "add_btn": "➕ Добавить",
         "name": "Название",
-        "keywords": "Ключевые слова",
+        "keywords": "Ключевые слова (через запятую)",
         "success": "Обработано: {} доходов и {} расходов",
         "download_mode": "Выберите формат Excel",
         "mode_sign": "Разделение по Дебету/Кредиту",
         "mode_proj": "Разделение по проектам",
         "download_btn": "📥 Скачать Excel файл",
-        "reset": "♻️ Сбросить"
+        "reset": "♻️ Сброс"
     }
 }
 
@@ -56,61 +59,68 @@ st.set_page_config(page_title="Young Folks Bank Automator", layout="wide")
 
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport & Mobility', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
-        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
-        {'name': 'Project Funding', 'keywords': 'NVA, Erasmus, Līgums', 'active': True},
-        {'name': 'Education & Training', 'keywords': 'Lekcija, Nodarbība, Kursi', 'active': True},
-        {'name': 'Bank & Finance', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True},
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
         {'name': 'Donations', 'keywords': 'Ziedojums, Donation', 'active': True}
     ]
 
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
-        {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība, Kursi, Zanjatija, Tutor', 'active': True},
-        {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True},
-        {'name': 'NVA Project', 'keywords': 'NVA, 8.3-8.1', 'active': True}
+        {'name': 'LESSONS', 'keywords': 'Lesson, Nodarbība', 'active': True},
+        {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}
     ]
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
+    # 1. Language Picker at the top left
+    selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()), label_visibility="collapsed")
+    t = LANGUAGES[selected_lang]
+    
+    # Logo
     try:
         st.image("YoungFolks-circle-42.png", use_container_width=True)
     except:
         pass
 
-    selected_lang = st.selectbox("🌍 Language", options=list(LANGUAGES.keys()))
-    t = LANGUAGES[selected_lang]
+    st.divider()
     
-    if st.button(t["reset"]):
+    # 2. Rule Manager Header + Reset Button side-by-side
+    header_col, reset_col = st.columns([2, 1])
+    header_col.subheader(t["rule_manager"])
+    if reset_col.button(t["reset"]):
         st.session_state.clear()
         st.rerun()
     
-    st.divider()
-    st.header(t["rule_manager"])
-    
-    # --- MASTER CATEGORIES EXPANDER ---
+    # --- CATEGORIES SECTION ---
     with st.expander(t["cat_header"], expanded=False):
         for i, rule in enumerate(st.session_state.cat_rules):
-            status = "✅" if rule['active'] else "❌"
-            with st.container():
-                c1, c2 = st.columns([1, 4])
-                rule['active'] = c1.checkbox("On", value=rule['active'], key=f"c_on_{i}", label_visibility="collapsed")
-                rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"c_n_{i}", label_visibility="collapsed")
-                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}", height=68)
-                st.divider()
+            c1, c2, c3 = st.columns([0.6, 3, 0.6])
+            rule['active'] = c1.checkbox("On", value=rule['active'], key=f"c_on_{i}", label_visibility="collapsed")
+            rule['name'] = c2.text_input(t["name"], value=rule['name'], key=f"c_n_{i}", label_visibility="collapsed")
+            if c3.button("🗑️", key=f"c_del_{i}"):
+                st.session_state.cat_rules.pop(i)
+                st.rerun()
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"c_k_{i}", height=68)
+            st.divider()
+        if st.button(t["add_btn"], key="add_cat"):
+            st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True})
+            st.rerun()
 
-    # --- MASTER PROJECTS EXPANDER ---
+    # --- PROJECTS SECTION ---
     with st.expander(t["proj_header"], expanded=False):
         for i, rule in enumerate(st.session_state.proj_rules):
-            status = "✅" if rule['active'] else "❌"
-            with st.container():
-                p1, p2 = st.columns([1, 4])
-                rule['active'] = p1.checkbox("On", value=rule['active'], key=f"p_on_{i}", label_visibility="collapsed")
-                rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"p_n_{i}", label_visibility="collapsed")
-                rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}", height=68)
-                st.divider()
+            p1, p2, p3 = st.columns([0.6, 3, 0.6])
+            rule['active'] = p1.checkbox("On", value=rule['active'], key=f"p_on_{i}", label_visibility="collapsed")
+            rule['name'] = p2.text_input(t["name"], value=rule['name'], key=f"p_n_{i}", label_visibility="collapsed")
+            if p3.button("🗑️", key=f"p_del_{i}"):
+                st.session_state.proj_rules.pop(i)
+                st.rerun()
+            rule['keywords'] = st.text_area(t["keywords"], value=rule['keywords'], key=f"p_k_{i}", height=68)
+            st.divider()
+        if st.button(t["add_btn"], key="add_proj"):
+            st.session_state.proj_rules.append({'name': 'New Project', 'keywords': '', 'active': True})
+            st.rerun()
 
-# --- 4. MAIN APP ---
+# --- 4. MAIN LOGIC ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
@@ -138,7 +148,6 @@ if uploaded_file is not None:
         df = df[~df['Purpose'].str.contains('balance|Turnover|atlikums|Apgrozījums', case=False, na=False)]
         
         cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-        
         st.success(t["success"].format(len(df[df['Sign'] == 'K']), len(df[df['Sign'] == 'D'])))
         st.dataframe(df[cols], use_container_width=True)
 
@@ -158,7 +167,7 @@ if uploaded_file is not None:
                     if not proj_df.empty:
                         p_credit = proj_df[proj_df['Sign'] == 'K'][cols]
                         p_debit = proj_df[proj_df['Sign'] == 'D'][cols]
-                        safe_name = project[:24] 
+                        safe_name = project[:24].replace('/', '_') 
                         if not p_credit.empty: p_credit.to_excel(writer, index=False, sheet_name=f"{safe_name} Credit")
                         if not p_debit.empty: p_debit.to_excel(writer, index=False, sheet_name=f"{safe_name} Debit")
                 
@@ -168,6 +177,6 @@ if uploaded_file is not None:
                     if not gc.empty: gc.to_excel(writer, index=False, sheet_name='General Credit')
                     if not gd.empty: gd.to_excel(writer, index=False, sheet_name='General Debit')
 
-        st.download_button(t["download_btn"], output.getvalue(), f"Report.xlsx", "application/vnd.ms-excel")
+        st.download_button(t["download_btn"], output.getvalue(), "Report.xlsx", "application/vnd.ms-excel")
     except Exception as e:
         st.error(f"Error: {e}")

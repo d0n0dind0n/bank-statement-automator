@@ -10,7 +10,7 @@ LANGUAGES = {
         "rule_manager": "Rule Manager",
         "cat_header": "📁 CATEGORIES",
         "proj_header": "📁 PROJECTS",
-        "add_list_btn": "➕ Create New Rule List",
+        "add_list_btn": "➕ Create New List",
         "add_rule_btn": "➕ Add Rule",
         "name": "Name",
         "keywords": "Keywords",
@@ -54,7 +54,7 @@ LANGUAGES = {
     }
 }
 
-# --- 2. CONFIG & STYLING ---
+# --- 2. CONFIG ---
 st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
@@ -62,22 +62,23 @@ st.markdown("""
     .logo-container-bottom { display: flex; justify-content: center; padding-top: 50px; padding-bottom: 20px; }
     .logo-container-bottom img { width: 100px; height: 100px; object-fit: contain; }
     .stButton button { width: 100% !important; border-radius: 8px; }
-    div[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; align-items: center !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SESSION STATE ---
+# --- 3. SESSION STATE (CATEGORIES & PROJECTS ONLY) ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
-        {'name': 'Bank Fees', 'keywords': 'Komisija', 'active': True}
+        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE, Pasažieru vilciens', 'active': True},
+        {'name': 'Membership Fees', 'keywords': 'Biedru nauda, Dalības maksa', 'active': True},
+        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas maksa', 'active': True}
     ]
 
 if 'custom_lists' not in st.session_state:
     st.session_state.custom_lists = [
-        {'title': 'NVA DEBIT', 'rules': [{'name': 'Payment', 'keywords': 'NVA', 'active': True}]},
-        {'title': 'NVA CREDIT', 'rules': [{'name': 'Refund', 'keywords': 'NVA Refund', 'active': True}]},
-        {'title': 'LESSONS', 'rules': [{'name': 'Class', 'keywords': 'Lesson', 'active': True}]}
+        {'title': 'NVA DEBIT', 'rules': [{'name': 'NVA Payment', 'keywords': 'NVA', 'active': True}]},
+        {'title': 'NVA CREDIT', 'rules': [{'name': 'NVA Refund', 'keywords': 'NVA Refund', 'active': True}]},
+        {'title': 'LESSONS', 'rules': [{'name': 'Lessons', 'keywords': 'Lesson, Nodarbība', 'active': True}]},
+        {'title': 'Young Folks', 'rules': [{'name': 'YF Support', 'keywords': 'Young Folks, YF', 'active': True}]}
     ]
 
 # --- 4. SIDEBAR ---
@@ -91,8 +92,8 @@ with st.sidebar:
     if r_col.button(t["reset"]):
         st.session_state.clear(); st.rerun()
 
-    # CATEGORIES
-    with st.expander(t["cat_header"]):
+    # SECTION 1: CATEGORIES
+    with st.expander(t["cat_header"], expanded=True):
         for i, rule in enumerate(st.session_state.cat_rules):
             c1, c2, c3 = st.columns([0.4, 3, 0.5])
             rule['active'] = c1.checkbox("", value=rule['active'], key=f"cat_on_{i}", label_visibility="collapsed")
@@ -104,12 +105,13 @@ with st.sidebar:
         if st.button(t["add_rule_btn"], key="add_cat"):
             st.session_state.cat_rules.append({'name': 'New Category', 'keywords': '', 'active': True}); st.rerun()
 
-    # PROJECTS (Lists for NVA Credit, NVA Debit, etc.)
+    # SECTION 2: PROJECTS
+    st.markdown(f"### {t['proj_header']}")
     for idx, r_list in enumerate(st.session_state.custom_lists):
         with st.expander(f"📁 {r_list['title']}"):
             l1, l2 = st.columns([3, 1])
             r_list['title'] = l1.text_input("List Name", value=r_list['title'], key=f"lt_{idx}")
-            if l2.button("🗑️ List", key=f"ld_{idx}"):
+            if l2.button("🗑️", key=f"ld_{idx}"):
                 st.session_state.custom_lists.pop(idx); st.rerun()
             for i, rule in enumerate(r_list['rules']):
                 p1, p2, p3 = st.columns([0.4, 3, 0.5])
@@ -127,10 +129,10 @@ with st.sidebar:
 
     st.markdown('<div class="logo-container-bottom">', unsafe_allow_html=True)
     try: st.image("YoungFolks-circle-42.png")
-    except: st.write("Young Folks")
+    except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. MAIN CONTENT & EXPORT ---
+# --- 5. PROCESSING & EXCEL ---
 st.title(t["title"])
 uploaded_file = st.file_uploader(t["upload_label"], type="csv")
 
@@ -146,7 +148,6 @@ if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         
-        # Build Table with your requested columns
         df_proc = pd.DataFrame()
         df_proc['Account'] = df[0]
         df_proc['Date'] = df[2]
@@ -169,20 +170,15 @@ if uploaded_file is not None:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["mode_sign"]:
-                # Sheet per Debit/Credit
                 for s, sheet_name in [('K', 'Income'), ('D', 'Expenses')]:
                     subset = df_proc[df_proc['_Sign'] == s].copy()
                     subset['Project Name'] = ""
                     subset[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             else:
-                # SHEET PER LIST (e.g., NVA DEBIT and NVA CREDIT will be separate sheets)
                 for r_list in st.session_state.custom_lists:
                     df_proj = df_proc.copy()
                     df_proj['Project Name'] = search_col.apply(lambda x: classify(x, r_list['rules']))
-                    
-                    # Filter rows matching this specific list's rules
                     final_subset = df_proj[df_proj['Project Name'] != ""].copy()
-                    
                     if not final_subset.empty:
                         sheet_name = str(r_list['title'])[:31].strip()
                         final_subset[cols].to_excel(writer, index=False, sheet_name=sheet_name)

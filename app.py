@@ -45,18 +45,20 @@ st.set_page_config(page_title="Young Folks Automator", layout="wide")
 
 st.markdown("""
     <style>
-    /* Square Logo Container */
-    .logo-container {
+    /* Bottom Center Logo Container */
+    .logo-container-bottom {
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 10px;
+        padding-top: 50px;
+        padding-bottom: 20px;
     }
-    .logo-container img {
-        width: 120px; /* Fixed small square size */
-        height: 120px;
+    .logo-container-bottom img {
+        width: 100px; /* Consistent square size */
+        height: 100px;
         object-fit: contain;
         border-radius: 10px;
+        opacity: 0.8;
     }
 
     /* Scaling Logic: Targets sidebar elements based on width */
@@ -71,17 +73,14 @@ st.markdown("""
         [data-testid="stSidebarContent"] * { font-size: calc(14px + 0.5cqw) !important; }
     }
     
-    /* Ensure icons/buttons fill space */
+    /* Full width buttons */
     .stButton button { width: 100% !important; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. SESSION STATE ---
 if 'cat_rules' not in st.session_state:
-    st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE', 'active': True},
-        {'name': 'Education', 'keywords': 'Lesson, Nodarbība', 'active': True}
-    ]
+    st.session_state.cat_rules = [{'name': 'Transport', 'keywords': 'BOLT', 'active': True}]
 
 if 'custom_lists' not in st.session_state:
     st.session_state.custom_lists = [
@@ -90,19 +89,13 @@ if 'custom_lists' not in st.session_state:
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    # Small Square Logo
-    st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    try:
-        st.image("YoungFolks-circle-42.png") # Uses the fixed width from CSS
-    except:
-        st.write("### YF")
-    st.markdown('</div>', unsafe_allow_html=True)
-
+    # 1. Language Picker at Top Left
     selected_lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[selected_lang]
     
     st.divider()
     
+    # Rule Manager Header & Reset
     h_col, r_col = st.columns([2, 1])
     h_col.subheader(t["rule_manager"])
     if r_col.button(t["reset"]):
@@ -148,11 +141,18 @@ with st.sidebar:
                 r_list['rules'].append({'name': 'New Rule', 'keywords': '', 'active': True})
                 st.rerun()
 
-    st.divider()
-    # "BLUE" AREA (Primary Button)
+    # Create New List Button
     if st.button(t["add_list_btn"], type="primary"):
         st.session_state.custom_lists.append({'title': 'NEW LIST', 'rules': []})
         st.rerun()
+
+    # 2. Logo at Center Bottom
+    st.markdown('<div class="logo-container-bottom">', unsafe_allow_html=True)
+    try:
+        st.image("YoungFolks-circle-42.png")
+    except:
+        st.write("Young Folks")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 5. MAIN LOGIC ---
 st.title(t["title"])

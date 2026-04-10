@@ -11,7 +11,7 @@ LANGUAGES = {
         "cat": "📁 CATEGORY", 
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
-        "dl": "📥 Download Excel (All Sheets)"
+        "dl": "📥 Download Excel Report"
     },
     "Latviešu": {
         "title": "🏦 Bankas automatizācija", 
@@ -19,7 +19,7 @@ LANGUAGES = {
         "cat": "📁 KATEGORIJA", 
         "proj": "📁 PROJEKTS", 
         "add_rule": "➕ Pievienot noteikumu", 
-        "dl": "📥 Lejupielādēt (Visas lapas)"
+        "dl": "📥 Lejupielādēt atskaiti"
     },
     "Русский": {
         "title": "🏦 Автоматизация", 
@@ -27,7 +27,7 @@ LANGUAGES = {
         "cat": "📁 КАТЕГОРИЯ", 
         "proj": "📁 ПРОЕКТ", 
         "add_rule": "➕ Добавить правило", 
-        "dl": "📥 Скачать Excel (Все листы)"
+        "dl": "📥 Скачать отчет Excel"
     }
 }
 
@@ -136,7 +136,7 @@ if file:
     try:
         df_raw = pd.read_csv(file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         
-        # Exclusion logic for turnover/balance
+        # Exclusion logic for summary rows
         mask = df_raw.stack().str.contains('Turnover|balance|Apgrozījums|Atlikums', case=False, na=False).unstack().any(axis=1)
         df_filtered = df_raw[~mask].copy()
         df_filtered = df_filtered[df_filtered[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)]
@@ -144,6 +144,7 @@ if file:
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         
+        # Parse Name, Personal Code, IBAN, SWIFT
         partner_data = df_filtered[3].apply(parse_partner).apply(pd.Series).fillna("")
         df_proc['Name Surname'] = partner_data['Name']
         df_proc['Personal Code'] = partner_data['P_Code']
@@ -152,43 +153,28 @@ if file:
         
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
+        # Numeric Amount (dot decimal)
         raw_amount = df_filtered[5].astype(str).str.replace(',', '.', regex=False)
         num_amount = pd.to_numeric(raw_amount, errors='coerce')
         df_proc['Amount'] = num_amount
         df_proc['_Sign'] = df_filtered[7]
         
+        # Classify based on rules
         search_txt = df_filtered[3].fillna('') + " " + df_filtered[4].fillna('')
         df_proc['Category'] = search_txt.apply(lambda x: classify(x, st.session_state.cat_rules))
         df_proc['Project Name'] = search_txt.apply(lambda x: classify(x, st.session_state.proj_rules))
         df_proc['Commentary'] = ""
 
+        # Export everything to one sheet
         output = io.BytesIO()
-
-        # ONLY "ALL" MODE (Detailed Sheets)
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
-            # Process Projects
-            for p_rule in st.session_state.proj_rules:
-                if p_rule['active']:
-                    p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
-                    if not p_df.empty:
-                        for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
-                            final_df = p_df[p_df['_Sign'] == sign]
-                            if not final_df.empty:
-                                sheet_name = f"{p_rule['name']} {s_label}"[:31]
-                                final_df[cols].to_excel(writer, index=False, sheet_name=sheet_name)
-            
-            # Process NA
-            na_df = df_proc[df_proc['Project Name'] == ""]
-            if not na_df.empty:
-                for sign, s_label in [('K', 'Income'), ('D', 'Expenses')]:
-                    final_na = na_df[na_df['_Sign'] == sign]
-                    if not final_na.empty:
-                        sheet_name = f"NA {s_label}"[:31]
-                        final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
+            # Sorted by date, all together
+            final_df = df_proc.sort_values(by='Date')
+            final_df[cols].to_excel(writer, index=False, sheet_name="Full Report")
 
         st.divider()
-        st.download_button(t["dl"], output.getvalue(), "YoungFolks_All_Report.xlsx")
+        st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:
         st.error(f"Error: {e}")

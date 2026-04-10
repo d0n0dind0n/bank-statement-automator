@@ -12,8 +12,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_proj": "Debit/Credit",      # Renamed from By Project
-        "m_all": "All",                # New Mode
+        "m_proj": "Debit/Credit",      
+        "m_all": "All",                
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -127,7 +127,7 @@ if file:
         df_proc['Partner'] = df[3]
         df_proc['Purpose'] = df[4]
         
-        # Numeric processing
+        # Numeric processing (comma to dot)
         raw_amount = df[5].astype(str).str.replace(',', '.', regex=False)
         num_amount = pd.to_numeric(raw_amount, errors='coerce')
         
@@ -150,7 +150,7 @@ if file:
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["m_proj"]:
                 cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-                # DETAILED PROJECT MODE
+                # DETAILED PROJECT MODE (Multiple Sheets)
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
@@ -170,9 +170,11 @@ if file:
                             final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             
             else:
-                # --- ALL MODE (1 Sheet with K and D columns) ---
+                # --- ALL MODE: One single sheet for EVERYTHING ---
                 all_cols = ['Account', 'Date', 'Partner', 'Purpose', 'K (KREDIT)', 'D (DEBIT)', 'Category', 'Project Name', 'Commentary']
-                df_proc[all_cols].to_excel(writer, index=False, sheet_name="Full Report")
+                # We sort by date so the full report is chronological
+                df_all = df_proc.sort_values(by='Date')
+                df_all[all_cols].to_excel(writer, index=False, sheet_name="Full Report")
 
         st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

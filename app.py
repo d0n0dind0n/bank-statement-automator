@@ -12,8 +12,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_proj": "By Project",        
-        "m_sign": "By Debit/Credit",   
+        "m_proj": "Debit/Credit",      # Renamed from By Project
+        "m_all": "All",                # New Mode
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -23,8 +23,8 @@ LANGUAGES = {
         "proj": "📁 PROJEKTS", 
         "add_rule": "➕ Pievienot noteikumu", 
         "mode": "Excel formāts", 
-        "m_proj": "Pa Projektiem", 
-        "m_sign": "Pa Debetu/Kredītu", 
+        "m_proj": "Debets/Kredīts", 
+        "m_all": "Viss kopā", 
         "dl": "📥 Lejupielādēt"
     },
     "Русский": {
@@ -34,8 +34,8 @@ LANGUAGES = {
         "proj": "📁 ПРОЕКТ", 
         "add_rule": "➕ Добавить правило", 
         "mode": "Формат Excel", 
-        "m_proj": "По Проектам", 
-        "m_sign": "По Дебету/Кредиту", 
+        "m_proj": "Дебет/Кредит", 
+        "m_all": "Все вместе", 
         "dl": "📥 Скачать Excel"
     }
 }
@@ -127,12 +127,16 @@ if file:
         df_proc['Partner'] = df[3]
         df_proc['Purpose'] = df[4]
         
-        # --- NUMERIC CLEANING ---
-        # 1. Clean Amount column: replace ',' with '.' and convert to actual number
-        amount_clean = df[5].astype(str).str.replace(',', '.', regex=False)
-        df_proc['Amount'] = pd.to_numeric(amount_clean, errors='coerce')
+        # Numeric processing
+        raw_amount = df[5].astype(str).str.replace(',', '.', regex=False)
+        num_amount = pd.to_numeric(raw_amount, errors='coerce')
         
+        df_proc['Amount'] = num_amount
         df_proc['_Sign'] = df[7]
+        
+        # Split into K and D columns for the "All" mode
+        df_proc['K (KREDIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'K' else None, axis=1)
+        df_proc['D (DEBIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'D' else None, axis=1)
         
         search_txt = df_proc['Partner'].fillna('') + " " + df_proc['Purpose'].fillna('')
         df_proc['Category'] = search_txt.apply(lambda x: classify(x, st.session_state.cat_rules))
@@ -140,14 +144,13 @@ if file:
         df_proc['Commentary'] = ""
 
         st.divider()
-        mode = st.radio(t["mode"], [t["m_proj"], t["m_sign"]]) 
+        mode = st.radio(t["mode"], [t["m_proj"], t["m_all"]]) 
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-            
             if mode == t["m_proj"]:
-                # --- DETAILED PROJECT MODE ---
+                cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+                # DETAILED PROJECT MODE
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
@@ -167,11 +170,9 @@ if file:
                             final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             
             else:
-                # --- GENERAL MODE (2 Sheets) ---
-                for sign, s_name in [('K', 'Income'), ('D', 'Expenses')]:
-                    subset = df_proc[df_proc['_Sign'] == sign].copy()
-                    if not subset.empty:
-                        subset[cols].to_excel(writer, index=False, sheet_name=s_name)
+                # --- ALL MODE (1 Sheet with K and D columns) ---
+                all_cols = ['Account', 'Date', 'Partner', 'Purpose', 'K (KREDIT)', 'D (DEBIT)', 'Category', 'Project Name', 'Commentary']
+                df_proc[all_cols].to_excel(writer, index=False, sheet_name="Full Report")
 
         st.download_button(t["dl"], output.getvalue(), "YoungFolks_Report.xlsx")
     except Exception as e:

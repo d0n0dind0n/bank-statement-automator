@@ -12,8 +12,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_proj": "By Project",        # Detailed logic
-        "m_sign": "By Debit/Credit",   # 2-Sheet logic
+        "m_proj": "By Project",        
+        "m_sign": "By Debit/Credit",   
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -102,7 +102,7 @@ with st.sidebar:
     except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. PROCESSING & EXPORT (NO DATAFRAME VIEW) ---
+# --- 5. PROCESSING & EXPORT ---
 st.title(t["title"])
 file = st.file_uploader(t["upload"], type="csv")
 
@@ -126,15 +126,18 @@ if file:
         df_proc['Date'] = df[2]
         df_proc['Partner'] = df[3]
         df_proc['Purpose'] = df[4]
-        df_proc['Amount'] = df[5]
+        
+        # --- NUMERIC CLEANING ---
+        # 1. Clean Amount column: replace ',' with '.' and convert to actual number
+        amount_clean = df[5].astype(str).str.replace(',', '.', regex=False)
+        df_proc['Amount'] = pd.to_numeric(amount_clean, errors='coerce')
+        
         df_proc['_Sign'] = df[7]
         
         search_txt = df_proc['Partner'].fillna('') + " " + df_proc['Purpose'].fillna('')
         df_proc['Category'] = search_txt.apply(lambda x: classify(x, st.session_state.cat_rules))
         df_proc['Project Name'] = search_txt.apply(lambda x: classify(x, st.session_state.proj_rules))
         df_proc['Commentary'] = ""
-
-        # st.dataframe section REMOVED to hide the file view
 
         st.divider()
         mode = st.radio(t["mode"], [t["m_proj"], t["m_sign"]]) 
@@ -144,7 +147,7 @@ if file:
             cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
             
             if mode == t["m_proj"]:
-                # --- DETAILED PROJECT MODE (Multiple Sheets) ---
+                # --- DETAILED PROJECT MODE ---
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]

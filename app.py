@@ -12,8 +12,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_proj": "Debit/Credit",      
-        "m_all": "All",                
+        "m_proj": "All",                # Detailed (Many sheets)
+        "m_all": "Full Report",         # Single sheet with K/D columns
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -23,8 +23,8 @@ LANGUAGES = {
         "proj": "📁 PROJEKTS", 
         "add_rule": "➕ Pievienot noteikumu", 
         "mode": "Excel formāts", 
-        "m_proj": "Debets/Kredīts", 
-        "m_all": "Viss kopā", 
+        "m_proj": "Visi", 
+        "m_all": "Pilna atskaite", 
         "dl": "📥 Lejupielādēt"
     },
     "Русский": {
@@ -34,8 +34,8 @@ LANGUAGES = {
         "proj": "📁 ПРОЕКТ", 
         "add_rule": "➕ Добавить правило", 
         "mode": "Формат Excel", 
-        "m_proj": "Дебет/Кредит", 
-        "m_all": "Все вместе", 
+        "m_proj": "Все", 
+        "m_all": "Полный отчет", 
         "dl": "📥 Скачать Excel"
     }
 }
@@ -134,7 +134,7 @@ if file:
         df_proc['Amount'] = num_amount
         df_proc['_Sign'] = df[7]
         
-        # Split into K and D columns for the "All" mode
+        # Columns for Full Report mode
         df_proc['K (KREDIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'K' else None, axis=1)
         df_proc['D (DEBIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'D' else None, axis=1)
         
@@ -149,8 +149,8 @@ if file:
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["m_proj"]:
+                # --- MODE: ALL (Detailed sheets per project) ---
                 cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
-                # DETAILED PROJECT MODE (Multiple Sheets)
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
@@ -170,9 +170,8 @@ if file:
                             final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             
             else:
-                # --- ALL MODE: One single sheet for EVERYTHING ---
+                # --- MODE: FULL REPORT (One single sheet) ---
                 all_cols = ['Account', 'Date', 'Partner', 'Purpose', 'K (KREDIT)', 'D (DEBIT)', 'Category', 'Project Name', 'Commentary']
-                # We sort by date so the full report is chronological
                 df_all = df_proc.sort_values(by='Date')
                 df_all[all_cols].to_excel(writer, index=False, sheet_name="Full Report")
 

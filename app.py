@@ -153,11 +153,14 @@ if file:
         
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
-        # Numeric Amount (dot decimal)
+        # Numeric Amount Processing
         raw_amount = df_filtered[5].astype(str).str.replace(',', '.', regex=False)
         num_amount = pd.to_numeric(raw_amount, errors='coerce')
-        df_proc['Amount'] = num_amount
-        df_proc['_Sign'] = df_filtered[7]
+        sign_col = df_filtered[7]
+        
+        # Create separate K and D columns
+        df_proc['K (KREDIT)'] = num_amount.where(sign_col == 'K')
+        df_proc['D (DEBIT)'] = num_amount.where(sign_col == 'D')
         
         # Classify based on rules
         search_txt = df_filtered[3].fillna('') + " " + df_filtered[4].fillna('')
@@ -168,9 +171,9 @@ if file:
         # Export everything to one sheet
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+            # Removed 'Amount', added 'K (KREDIT)' and 'D (DEBIT)'
+            cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'K (KREDIT)', 'D (DEBIT)', 'Category', 'Project Name', 'Commentary']
             
-            # Sorted by date, all together
             final_df = df_proc.sort_values(by='Date')
             final_df[cols].to_excel(writer, index=False, sheet_name="Full Report")
 

@@ -67,7 +67,49 @@ if 'proj_rules' not in st.session_state:
         {'name': 'Lessons', 'keywords': 'Lesson, Nodarbība, sarunvalodas', 'active': True}
     ]
 
-# --- 4. SIDEBAR ---
+# --- 4. HELPER FUNCTIONS ---
+def classify(text, rules):
+    text = str(text).lower()
+    for r in rules:
+        if r['active'] and r['keywords']:
+            keys = [k.strip().lower() for k in r['keywords'].split(',')]
+            for k in keys:
+                if k:
+                    pattern = rf"\b{re.escape(k)}\b"
+                    if re.search(pattern, text):
+                        return r['name']
+    return ""
+
+def parse_partner(val):
+    if pd.isna(val) or str(val).strip() == "":
+        return {"Name": "", "P_Code": "", "Account": "", "SWIFT": ""}
+    
+    val = str(val).replace('|', ' ')  # Remove those vertical bars
+    
+    # Extract IBAN
+    iban = re.search(r'[A-Z]{2}\d{2}[A-Z0-9]{11,30}', val)
+    # Extract Personal Code
+    p_code = re.search(r'\d{6}-\d{5}', val)
+    # Extract SWIFT
+    swift = re.search(r'\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b', val)
+    
+    # Clean the name by removing the found codes and excess whitespace/commas
+    clean_name = val
+    if iban: clean_name = clean_name.replace(iban.group(), "")
+    if p_code: clean_name = clean_name.replace(p_code.group(), "")
+    if swift: clean_name = clean_name.replace(swift.group(), "")
+    
+    # Remove any lingering commas or double spaces
+    clean_name = re.sub(r'\s+', ' ', clean_name).strip().strip(',')
+    
+    return {
+        "Name": clean_name if clean_name else "",
+        "P_Code": p_code.group() if p_code else "",
+        "Account": iban.group() if iban else "",
+        "SWIFT": swift.group() if swift else ""
+    }
+
+# --- 5. SIDEBAR ---
 with st.sidebar:
     lang = st.selectbox("🌍", options=list(LANGUAGES.keys()), label_visibility="collapsed")
     t = LANGUAGES[lang]
@@ -102,41 +144,6 @@ with st.sidebar:
     except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. HELPER FUNCTIONS ---
-def classify(text, rules):
-    text = str(text).lower()
-    for r in rules:
-        if r['active'] and r['keywords']:
-            keys = [k.strip().lower() for k in r['keywords'].split(',')]
-            for k in keys:
-                if k:
-                    pattern = rf"\b{re.escape(k)}\b"
-                    if re.search(pattern, text):
-                        return r['name']
-    return ""
-
-def parse_partner(val):
-    val = str(val)
-    # Extracts IBAN (Standard format starting with 2 letters)
-    iban = re.search(r'[A-Z]{2}\d{2}[A-Z0-9]{11,30}', val)
-    # Extracts Personal Code (Latvian style: 6 digits - 5 digits)
-    p_code = re.search(r'\d{6}-\d{5}', val)
-    # Extract SWIFT (8 or 11 characters)
-    swift = re.search(r'\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b', val)
-    
-    # Clean name: remove the codes found above to leave just the name
-    clean_name = val
-    if iban: clean_name = clean_name.replace(iban.group(), "")
-    if p_code: clean_name = clean_name.replace(p_code.group(), "")
-    if swift: clean_name = clean_name.replace(swift.group(), "")
-    
-    return {
-        "Name": clean_name.strip().strip(','),
-        "P_Code": p_code.group() if p_code else "",
-        "Account": iban.group() if iban else "",
-        "SWIFT": swift.group() if swift else ""
-    }
-
 # --- 6. MAIN APP ---
 st.title(t["title"])
 file = st.file_uploader(t["upload"], type="csv")
@@ -146,25 +153,22 @@ if file:
         df = pd.read_csv(file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df_proc = pd.DataFrame()
         
-        # Account column deleted as per request
         df_proc['Date'] = df[2]
         
-        # Parse Partner Details
-        partner_data = df[3].apply(parse_partner).apply(pd.Series)
+        # Apply Parsing and force empty strings for missing data
+        partner_data = df[3].apply(parse_partner).apply(pd.Series).fillna("")
         df_proc['Name Surname'] = partner_data['Name']
         df_proc['Personal Code'] = partner_data['P_Code']
         df_proc['Konta numurs'] = partner_data['Account']
         df_proc['Bankas SWIFT'] = partner_data['SWIFT']
         
-        df_proc['Purpose'] = df[4]
+        df_proc['Purpose'] = df[4].fillna("")
         
-        # Numeric processing
         raw_amount = df[5].astype(str).str.replace(',', '.', regex=False)
         num_amount = pd.to_numeric(raw_amount, errors='coerce')
         df_proc['Amount'] = num_amount
         df_proc['_Sign'] = df[7]
         
-        # Column values for Full Report
         df_proc['K (KREDIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'K' else None, axis=1)
         df_proc['D (DEBIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'D' else None, axis=1)
         
@@ -179,7 +183,6 @@ if file:
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["m_proj"]:
-                # --- ALL MODE (Detailed sheets) ---
                 cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
@@ -200,7 +203,6 @@ if file:
                             final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             
             else:
-                # --- FULL REPORT MODE ---
                 all_cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'K (KREDIT)', 'D (DEBIT)', 'Category', 'Project Name', 'Commentary']
                 df_all = df_proc.sort_values(by='Date')
                 df_all[all_cols].to_excel(writer, index=False, sheet_name="Full Report")

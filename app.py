@@ -12,8 +12,8 @@ LANGUAGES = {
         "proj": "📁 PROJECT", 
         "add_rule": "➕ Add Rule", 
         "mode": "Excel Mode", 
-        "m_proj": "All",                # Detailed (Many sheets)
-        "m_all": "Full Report",         # Single sheet with K/D columns
+        "m_proj": "All",                
+        "m_all": "Full Report",         
         "dl": "📥 Download Excel"
     },
     "Latviešu": {
@@ -102,10 +102,7 @@ with st.sidebar:
     except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. PROCESSING & EXPORT ---
-st.title(t["title"])
-file = st.file_uploader(t["upload"], type="csv")
-
+# --- 5. HELPER FUNCTIONS ---
 def classify(text, rules):
     text = str(text).lower()
     for r in rules:
@@ -118,27 +115,60 @@ def classify(text, rules):
                         return r['name']
     return ""
 
+def parse_partner(val):
+    val = str(val)
+    # Extracts IBAN (Standard format starting with 2 letters)
+    iban = re.search(r'[A-Z]{2}\d{2}[A-Z0-9]{11,30}', val)
+    # Extracts Personal Code (Latvian style: 6 digits - 5 digits)
+    p_code = re.search(r'\d{6}-\d{5}', val)
+    # Extract SWIFT (8 or 11 characters)
+    swift = re.search(r'\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b', val)
+    
+    # Clean name: remove the codes found above to leave just the name
+    clean_name = val
+    if iban: clean_name = clean_name.replace(iban.group(), "")
+    if p_code: clean_name = clean_name.replace(p_code.group(), "")
+    if swift: clean_name = clean_name.replace(swift.group(), "")
+    
+    return {
+        "Name": clean_name.strip().strip(','),
+        "P_Code": p_code.group() if p_code else "",
+        "Account": iban.group() if iban else "",
+        "SWIFT": swift.group() if swift else ""
+    }
+
+# --- 6. MAIN APP ---
+st.title(t["title"])
+file = st.file_uploader(t["upload"], type="csv")
+
 if file:
     try:
         df = pd.read_csv(file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df_proc = pd.DataFrame()
-        df_proc['Account'] = df[0]
+        
+        # Account column deleted as per request
         df_proc['Date'] = df[2]
-        df_proc['Partner'] = df[3]
+        
+        # Parse Partner Details
+        partner_data = df[3].apply(parse_partner).apply(pd.Series)
+        df_proc['Name Surname'] = partner_data['Name']
+        df_proc['Personal Code'] = partner_data['P_Code']
+        df_proc['Konta numurs'] = partner_data['Account']
+        df_proc['Bankas SWIFT'] = partner_data['SWIFT']
+        
         df_proc['Purpose'] = df[4]
         
-        # Numeric processing (comma to dot)
+        # Numeric processing
         raw_amount = df[5].astype(str).str.replace(',', '.', regex=False)
         num_amount = pd.to_numeric(raw_amount, errors='coerce')
-        
         df_proc['Amount'] = num_amount
         df_proc['_Sign'] = df[7]
         
-        # Columns for Full Report mode
+        # Column values for Full Report
         df_proc['K (KREDIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'K' else None, axis=1)
         df_proc['D (DEBIT)'] = df_proc.apply(lambda x: x['Amount'] if x['_Sign'] == 'D' else None, axis=1)
         
-        search_txt = df_proc['Partner'].fillna('') + " " + df_proc['Purpose'].fillna('')
+        search_txt = df[3].fillna('') + " " + df[4].fillna('')
         df_proc['Category'] = search_txt.apply(lambda x: classify(x, st.session_state.cat_rules))
         df_proc['Project Name'] = search_txt.apply(lambda x: classify(x, st.session_state.proj_rules))
         df_proc['Commentary'] = ""
@@ -149,8 +179,8 @@ if file:
 
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if mode == t["m_proj"]:
-                # --- MODE: ALL (Detailed sheets per project) ---
-                cols = ['Account', 'Date', 'Partner', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
+                # --- ALL MODE (Detailed sheets) ---
+                cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'Amount', 'Category', 'Project Name', 'Commentary']
                 for p_rule in st.session_state.proj_rules:
                     if p_rule['active']:
                         p_df = df_proc[df_proc['Project Name'] == p_rule['name']]
@@ -170,8 +200,8 @@ if file:
                             final_na[cols].to_excel(writer, index=False, sheet_name=sheet_name)
             
             else:
-                # --- MODE: FULL REPORT (One single sheet) ---
-                all_cols = ['Account', 'Date', 'Partner', 'Purpose', 'K (KREDIT)', 'D (DEBIT)', 'Category', 'Project Name', 'Commentary']
+                # --- FULL REPORT MODE ---
+                all_cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'K (KREDIT)', 'D (DEBIT)', 'Category', 'Project Name', 'Commentary']
                 df_all = df_proc.sort_values(by='Date')
                 df_all[all_cols].to_excel(writer, index=False, sheet_name="Full Report")
 

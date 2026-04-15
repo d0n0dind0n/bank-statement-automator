@@ -6,30 +6,56 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2 import service_account
 
-# --- 1. LANGUAGE DICTIONARY ---
+# --- 1. VALODU IESTATĪJUMI ---
 LANGUAGES = {
-    "English": {"title": "🏦 Bank Automator", "upload": "Upload CSV", "cat": "📁 CATEGORY", "proj": "📁 PROJECT", "add_rule": "➕ Add Rule", "dl": "📥 Download", "drive": "☁️ Save to Google Drive"},
-    "Latviešu": {"title": "🏦 Bankas automatizācija", "upload": "Augšupielādēt CSV", "cat": "📁 KATEGORIJA", "proj": "📁 PROJEKTS", "add_rule": "➕ Pievienot noteikumu", "dl": "📥 Lejupielādēt", "drive": "☁️ Saglabāt Drive"},
-    "Русский": {"title": "🏦 Автоматизация", "upload": "Загрузить CSV", "cat": "📁 КАТЕГОРИЯ", "proj": "📁 ПРОЕКТ", "add_rule": "➕ Добавить правило", "dl": "📥 Скачать", "drive": "☁️ Сохранить на Drive"}
+    "Latviešu": {
+        "title": "🏦 Bankas datu apstrāde", 
+        "upload": "Augšupielādēt CSV failu", 
+        "cat": "📁 KATEGORIJAS", 
+        "proj": "📁 PROJEKTI", 
+        "add_rule": "➕ Pievienot noteikumu", 
+        "dl": "📥 Lejupielādēt Excel", 
+        "drive": "☁️ Saglabāt Google Drive"
+    },
+    "English": {
+        "title": "🏦 Bank Automator", 
+        "upload": "Upload CSV", 
+        "cat": "📁 CATEGORY", 
+        "proj": "📁 PROJECT", 
+        "add_rule": "➕ Add Rule", 
+        "dl": "📥 Download Excel", 
+        "drive": "☁️ Save to Google Drive"
+    }
 }
 
-# --- 2. SESSION STATE (Rules) ---
+# --- 2. KATEGORIJAS UN PROJEKTI (No jūsu bildes un datiem) ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Transport', 'keywords': 'BOLT, CITYBEE, RENFE', 'active': True},
-        {'name': 'Bank Fees', 'keywords': 'Komisija, Apkalpošanas', 'active': True}
+        {'name': 'Membership & Donations', 'keywords': 'Biedru maksa, Dalības maksa, Dalībmaksa, Ziedojums, Dalībasmaksa par mēnesi', 'active': True},
+        {'name': 'Operational Expenses', 'keywords': 'Komisija, Internetbankas apkalpošanas maksa, Maksājumu uzdevuma apkalpošana', 'active': True},
+        {'name': 'Logistics & Travel', 'keywords': 'PIRKUMS, Citybee, Bolt, Bolt.eu, Insularcar, Tallinn, Funchal', 'active': True},
+        {'name': 'Rent & Admin', 'keywords': 'Telpu noma, Līgums, Ligums, Līgums no 19.08.25', 'active': True},
+        {'name': 'Income from Services', 'keywords': 'Rēķins, Oplata zanjatija, Nodarbība, Lekcija, Sarunvalodas nodarbība', 'active': True},
+        {'name': 'Equipment & Supplies', 'keywords': 'IKEA, Latvia, Pirkums', 'active': True}
     ]
+
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
-        {'name': 'NVA', 'keywords': 'NVA', 'active': True},
+        {
+            'name': 'NVA / ESF', 
+            'keywords': 'NVA, Nodarbinatibas valsts agentura, ESF PIN 4.3.3.2/1/24/I/002, VSAOI, Lig.Nr.8.3-8.1/130-2025', 
+            'active': True
+        },
         {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}
     ]
 
-# --- 3. GOOGLE DRIVE FUNCTION ---
+# --- 3. GOOGLE DRIVE FUNKCIJA ---
 def upload_to_drive(file_data, file_name):
     try:
+        # Ielasa datus no Streamlit Cloud Secrets
         creds_info = dict(st.secrets["google_drive"])
-        # Fix for the PEM error:
+        
+        # Svarīgs solis: aizstāj teksta "\n" ar reāliem rindas pārtraukumiem, lai PEM fails ielādētos
         if "private_key" in creds_info:
             creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
             
@@ -46,12 +72,13 @@ def upload_to_drive(file_data, file_name):
         st.error(f"Google Drive Error: {e}")
         return False
 
-# --- 4. CLASSIFICATION & PARSING ---
+# --- 4. DATU APSTRĀDES FUNKCIJAS ---
 def classify(text, rules):
     text = str(text).lower()
     for r in rules:
         if r['active'] and r['keywords']:
-            for k in [x.strip().lower() for x in r['keywords'].split(',')]:
+            keys = [k.strip().lower() for k in r['keywords'].split(',')]
+            for k in keys:
                 if k and re.search(rf"\b{re.escape(k)}\b", text):
                     return r['name']
     return ""
@@ -68,6 +95,7 @@ def parse_partner(val):
     if iban: clean_name = clean_name.replace(iban.group(), "")
     if p_code: clean_name = clean_name.replace(p_code.group(), "")
     if swift: clean_name = clean_name.replace(swift.group(), "")
+    
     return {
         "Name": re.sub(r'\s+', ' ', clean_name).strip().strip(','),
         "P_Code": p_code.group() if p_code else "",
@@ -75,64 +103,86 @@ def parse_partner(val):
         "SWIFT": swift.group() if swift else ""
     }
 
-# --- 5. UI SIDEBAR ---
-st.set_page_config(page_title="Bank Automator", layout="wide")
-lang = st.sidebar.selectbox("🌍", options=list(LANGUAGES.keys()))
+# --- 5. LIETOTNES SASKARNE (UI) ---
+st.set_page_config(page_title="Young Folks Automator", layout="wide")
+lang = st.sidebar.selectbox("Valoda / Language", options=list(LANGUAGES.keys()))
 t = LANGUAGES[lang]
 
 with st.sidebar:
-    st.header("Rules")
-    for section, state_key in [(t["cat"], 'cat_rules'), (t["proj"], 'proj_rules')]:
-        with st.expander(section):
-            for i, rule in enumerate(st.session_state[state_key]):
-                rule['active'] = st.checkbox("Active", value=rule['active'], key=f"{state_key}_on_{i}")
-                rule['name'] = st.text_input("Name", value=rule['name'], key=f"{state_key}_n_{i}")
-                rule['keywords'] = st.text_area("Keywords (comma separated)", value=rule['keywords'], key=f"{state_key}_k_{i}")
-                st.divider()
+    st.header("Iestatījumi / Settings")
+    with st.expander(t["cat"]):
+        for i, rule in enumerate(st.session_state.cat_rules):
+            rule['active'] = st.checkbox(f"Ieslēgt: {rule['name']}", value=rule['active'], key=f"c_on_{i}")
+            rule['keywords'] = st.text_area(f"Atslēgvārdi ({rule['name']})", value=rule['keywords'], key=f"c_k_{i}")
+            st.divider()
 
-# --- 6. MAIN LOGIC ---
+    with st.expander(t["proj"]):
+        for i, rule in enumerate(st.session_state.proj_rules):
+            rule['active'] = st.checkbox(f"Ieslēgt: {rule['name']}", value=rule['active'], key=f"p_on_{i}")
+            rule['keywords'] = st.text_area(f"Atslēgvārdi ({rule['name']})", value=rule['keywords'], key=f"p_k_{i}")
+            st.divider()
+
+# --- 6. GALVENĀ LOGIKA ---
 st.title(t["title"])
-uploaded_file = st.file_uploader(t["upload"], type="csv")
+file = st.file_uploader(t["upload"], type="csv")
 
-if uploaded_file:
+if file:
     try:
-        df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
+        # CSV ielasīšana
+        df_raw = pd.read_csv(file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
+        
+        # Izfiltrējam rindiņas, kas satur apgrozījumu vai atlikumu (lai neparādās sarakstā)
         mask = df_raw.stack().str.contains('Turnover|balance|Apgrozījums|Atlikums', case=False, na=False).unstack().any(axis=1)
         df_filtered = df_raw[~mask].copy()
         df_filtered = df_filtered[df_filtered[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)]
 
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
-        partner = df_filtered[3].apply(parse_partner).apply(pd.Series).fillna("")
-        df_proc['Name Surname'] = partner['Name']
-        df_proc['Personal Code'] = partner['P_Code']
-        df_proc['Konta numurs'] = partner['Account']
-        df_proc['Bankas SWIFT'] = partner['SWIFT']
+        
+        # Partnera datu sadalīšana
+        partner_data = df_filtered[3].apply(parse_partner).apply(pd.Series).fillna("")
+        df_proc['Name Surname'] = partner_data['Name']
+        df_proc['Personal Code'] = partner_data['P_Code']
+        df_proc['Konta numurs'] = partner_data['Account']
+        df_proc['Bankas SWIFT'] = partner_data['SWIFT']
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
-        raw_amt = df_filtered[5].astype(str).str.replace(',', '.', regex=False)
-        num_amt = pd.to_numeric(raw_amt, errors='coerce')
-        sign = df_filtered[7]
-        df_proc['K (KREDIT)'] = num_amt.where(sign == 'K')
-        df_proc['D (DEBIT)'] = num_amt.where(sign == 'D')
+        # Summu apstrāde (D un K kolonnas)
+        raw_amount = df_filtered[5].astype(str).str.replace(',', '.', regex=False)
+        num_amount = pd.to_numeric(raw_amount, errors='coerce')
+        sign_col = df_filtered[7]
         
-        text_for_search = df_filtered[3].fillna('') + " " + df_filtered[4].fillna('')
-        df_proc['Category'] = text_for_search.apply(lambda x: classify(x, st.session_state.cat_rules))
-        df_proc['Project'] = text_for_search.apply(lambda x: classify(x, st.session_state.proj_rules))
+        df_proc['K (KREDITS)'] = num_amount.where(sign_col == 'K')
+        df_proc['D (DEBETS)'] = num_amount.where(sign_col == 'D')
+        
+        # Kategoriju un Projektu piešķiršana
+        search_txt = df_filtered[3].fillna('') + " " + df_filtered[4].fillna('')
+        df_proc['Category'] = search_txt.apply(lambda x: classify(x, st.session_state.cat_rules))
+        df_proc['Project Name'] = search_txt.apply(lambda x: classify(x, st.session_state.proj_rules))
+        df_proc['Commentary'] = ""
 
-        # EXPORT
+        # Excel faila izveide atmiņā
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_proc.to_excel(writer, index=False, sheet_name="Report")
-        
+            cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'K (KREDITS)', 'D (DEBETS)', 'Category', 'Project Name', 'Commentary']
+            final_df = df_proc.sort_values(by='Date')
+            final_df[cols].to_excel(writer, index=False, sheet_name="Atskaite")
+
+        # --- POGAS LEJUPIELĀDEI UN DRIVE ---
         st.divider()
         col1, col2 = st.columns(2)
+        
         with col1:
-            st.download_button(t["dl"], output.getvalue(), "Bank_Report.xlsx")
+            st.download_button(t["dl"], output.getvalue(), "Bankas_Atskaite_YF.xlsx")
+            
         with col2:
             if st.button(t["drive"]):
                 output.seek(0)
-                if upload_to_drive(output, "YoungFolks_Auto_Report.xlsx"):
-                    st.success("✅ Saved to Drive!")
+                with st.spinner("Notiek saglabāšana..."):
+                    if upload_to_drive(output, "Automatiska_Bankas_Atskaite.xlsx"):
+                        st.success("✅ Fails veiksmīgi saglabāts Google Drive!")
+                    else:
+                        st.error("❌ Neizdevās saglabāt Drive. Pārbaudiet iestatījumus.")
+
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Kļūda: {e}")

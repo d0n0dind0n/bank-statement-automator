@@ -9,7 +9,7 @@ from datetime import datetime
 
 # --- 1. KONFIGURĀCIJA UN OAUTH IESTATĪJUMI ---
 # Maini šo adresi uz savu aktuālo lietotnes URL!
-REDIRECT_URI = "https://bank-statement-automator-wm4atvbmldyrwdehnbnkzb.streamlit.app/"
+REDIRECT_URI = "https://bank-statement-automator-wm4atvbmldyrwdehnbnkzb.streamlit.app"
 
 CLIENT_ID = st.secrets["google_oauth"]["client_id"]
 CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]

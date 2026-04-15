@@ -4,178 +4,120 @@ import io
 import re
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
-from google.oauth2 import service_account
+from google_auth_oauthlib.flow import Flow
 from datetime import datetime
 
-# --- 1. VALODU IESTATĪJUMI ---
-LANGUAGES = {
-    "Latviešu": {
-        "title": "🏦 Bankas datu apstrāde", 
-        "upload": "Augšupielādēt CSV failu", 
-        "cat": "📁 KATEGORIJAS", 
-        "proj": "📁 PROJEKTI", 
-        "dl": "📥 Lejupielādēt datorā", 
-        "sheets": "🚀 Atvērt Google Sheets (Online)"
-    },
-    "English": {
-        "title": "🏦 Bank Automator", 
-        "upload": "Upload CSV", 
-        "cat": "📁 CATEGORY", 
-        "proj": "📁 PROJECT", 
-        "dl": "📥 Download to PC", 
-        "sheets": "🚀 Open in Google Sheets (Online)"
-    }
-}
+# --- 1. KONFIGURĀCIJA ---
+CLIENT_ID = st.secrets["google_oauth"]["client_id"]
+CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
+# ŠEIT ieraksti savas lietotnes adresi (beidzas ar .streamlit.app/)
+REDIRECT_URI = "https://your-app-name.streamlit.app/" 
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-# --- 2. KATEGORIJAS UN PROJEKTI ---
+# --- 2. AUTENTIFIKĀCIJA ---
+def get_flow():
+    return Flow.from_client_config(
+        {"web": {
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+        }},
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
+
+if 'auth_creds' not in st.session_state:
+    st.session_state.auth_creds = None
+
+# Atgriešanās no Google Login
+params = st.query_params
+if "code" in params and st.session_state.auth_creds is None:
+    flow = get_flow()
+    flow.fetch_token(code=params["code"])
+    st.session_state.auth_creds = flow.credentials
+    st.query_params.clear()
+
+if st.session_state.auth_creds is None:
+    flow = get_flow()
+    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+    st.title("🏦 Young Folks Bank Automator")
+    st.write("Lūdzu, ielogojieties, lai saglabātu atskaites Drive bez lejupielādes.")
+    st.link_button("🔑 Login with Google", auth_url)
+    st.stop()
+
+# --- 3. KATEGORIJAS UN PROJEKTI ---
 if 'cat_rules' not in st.session_state:
     st.session_state.cat_rules = [
-        {'name': 'Membership YF kids', 'keywords': 'YF kids, Biedra nauda kids', 'active': True},
-        {'name': 'Membership YF teens', 'keywords': 'YF teens, Biedra nauda teens', 'active': True},
-        {'name': 'Membership Youth', 'keywords': 'Youth membership, Jauniešu biedra nauda', 'active': True},
-        {'name': 'Membership Forever Young', 'keywords': 'Forever Young membership', 'active': True},
         {'name': 'Membership & Donations', 'keywords': 'Biedru maksa, Dalības maksa, Ziedojums', 'active': True},
-        {'name': 'Salaries NVA', 'keywords': 'Alga NVA, NVA alga', 'active': True},
-        {'name': 'Salaries YF Main', 'keywords': 'Alga YF, YF alga', 'active': True},
-        {'name': 'Salaries projekti', 'keywords': 'Alga projekts, Projekta alga', 'active': True},
-        {'name': 'Salaries nodokļi', 'keywords': 'VSAOI, IIN, Nodokļi alga', 'active': True},
-        {'name': 'YF Travel Japan', 'keywords': 'Japan, Japāna, Tokija', 'active': True},
-        {'name': 'YF Travel New York', 'keywords': 'New York, Ņujorka, NYC', 'active': True},
-        {'name': 'YF Travel Iceland', 'keywords': 'Iceland, Islande, Reikjavika', 'active': True},
-        {'name': 'Logistics & Travel', 'keywords': 'PIRKUMS, Citybee, Bolt, Bolt.eu, Insularcar, Tallinn, Funchal', 'active': True},
-        {'name': 'Services Office Rent', 'keywords': 'Office Rent, Biroja noma', 'active': True},
-        {'name': 'Operational Expenses', 'keywords': 'Komisija, Internetbankas apkalpošanas maksa', 'active': True},
-        {'name': 'Office supplies', 'keywords': 'IKEA, Latvia, Kanceleja', 'active': True},
-        {'name': 'Rent & Admin', 'keywords': 'Telpu noma, Līgums, Admin', 'active': True}
+        {'name': 'Salaries & Taxes', 'keywords': 'Alga, VSAOI, IIN, Nodokļi', 'active': True},
+        {'name': 'Logistics & Travel', 'keywords': 'Citybee, Bolt, airBaltic, Pirkums', 'active': True},
+        {'name': 'Operational Expenses', 'keywords': 'Komisija, Apkalpošana', 'active': True},
+        {'name': 'Rent & Admin', 'keywords': 'Telpu noma, Līgums', 'active': True}
     ]
 
 if 'proj_rules' not in st.session_state:
     st.session_state.proj_rules = [
         {'name': 'NVA / ESF', 'keywords': 'NVA, ESF, 4.3.3.2/1/24/I/002, 8.3-8.1/130-2025', 'active': True},
-        {'name': 'DiscoverEU (200B)', 'keywords': 'DiscoverEU, My Europ too, 200B', 'active': True},
-        {'name': 'Youth Identity Hub (400B)', 'keywords': 'Youth Identity Hub, 400B', 'active': True},
-        {'name': 'Youth Podcast Station (300B)', 'keywords': 'Youth Podcast Station, 300B', 'active': True},
-        {'name': 'Youth Work Bus (500B)', 'keywords': 'Youth Work Bus, 500B', 'active': True},
-        {'name': 'Young Business (KA210)', 'keywords': 'Young Business, KA210', 'active': True},
-        {'name': 'Zemlya (101239301)', 'keywords': 'Zemlya, 101239301', 'active': True},
+        {'name': 'DiscoverEU (200B)', 'keywords': '200B, DiscoverEU', 'active': True},
+        {'name': 'Youth Identity Hub (400B)', 'keywords': '400B, Identity Hub', 'active': True},
         {'name': 'SHIFT (KA210)', 'keywords': 'SHIFT, KA210', 'active': True},
-        {'name': 'Līderu Skola (GEAR UP!)', 'keywords': 'Lapas, GEAR UP, Līderu Skola', 'active': True}
+        {'name': 'Young Folks', 'keywords': 'Young Folks, YF', 'active': True}
     ]
 
-# --- 3. HELPER FUNCTIONS ---
-def upload_to_drive(file_data, file_name):
-    try:
-        creds_info = dict(st.secrets["google_drive"])
-        if "private_key" in creds_info:
-            creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
-        FOLDER_ID = creds_info["folder_id"]
-        SCOPES = ['https://www.googleapis.com/auth/drive.file']
-        creds = service_account.Credentials.from_service_account_info(creds_info, scopes=SCOPES)
-        service = build('drive', 'v3', credentials=creds)
-        file_metadata = {'name': file_name, 'parents': [FOLDER_ID]}
-        media = MediaIoBaseUpload(file_data, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
-        file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
-        return file.get('webViewLink')
-    except Exception as e:
-        st.error(f"Google Drive Error: {e}")
-        return None
-
+# --- 4. FUNKCIJAS ---
 def classify(text, rules):
     text = str(text).lower()
     for r in rules:
         if r['active'] and r['keywords']:
-            keys = [k.strip().lower() for k in r['keywords'].split(',')]
-            for k in keys:
-                if k and k in text:
-                    return r['name']
+            for k in [x.strip().lower() for x in r['keywords'].split(',')]:
+                if k and k in text: return r['name']
     return ""
 
-def parse_partner(val):
-    if pd.isna(val) or str(val).strip() == "":
-        return {"Name": "", "P_Code": "", "Account": "", "SWIFT": ""}
-    val = str(val).replace('|', ' ')
-    iban = re.search(r'[A-Z]{2}\d{2}[A-Z0-9]{11,30}', val)
-    p_code = re.search(r'\d{6}-\d{5}', val)
-    swift = re.search(r'\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b', val)
-    clean_name = val
-    if iban: clean_name = clean_name.replace(iban.group(), "")
-    if p_code: clean_name = clean_name.replace(p_code.group(), "")
-    if swift: clean_name = clean_name.replace(swift.group(), "")
-    return {
-        "Name": re.sub(r'\s+', ' ', clean_name).strip().strip(','),
-        "P_Code": p_code.group() if p_code else "",
-        "Account": iban.group() if iban else "",
-        "SWIFT": swift.group() if swift else ""
-    }
+def upload_to_drive(file_data, file_name):
+    service = build('drive', 'v3', credentials=st.session_state.auth_creds)
+    file_metadata = {'name': file_name}
+    media = MediaIoBaseUpload(file_data, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+    return file.get('webViewLink')
 
-# --- 4. MAIN UI ---
-st.set_page_config(page_title="Young Folks Automator", layout="wide")
-lang = st.sidebar.selectbox("🌍", options=list(LANGUAGES.keys()))
-t = LANGUAGES[lang]
+# --- 5. LIETOTNES DARBĪBA ---
+st.title("🏦 Apstrāde uzsākta")
+st.sidebar.button("Log Out", on_click=lambda: st.session_state.update({"auth_creds": None}))
 
-with st.sidebar:
-    st.header("Rules")
-    with st.expander(t["cat"]):
-        for i, rule in enumerate(st.session_state.cat_rules):
-            rule['active'] = st.checkbox(f"On: {rule['name']}", value=rule['active'], key=f"c_on_{i}")
-            rule['keywords'] = st.text_area(f"Keys ({rule['name']})", value=rule['keywords'], key=f"c_k_{i}", height=60)
-    with st.expander(t["proj"]):
-        for i, rule in enumerate(st.session_state.proj_rules):
-            rule['active'] = st.checkbox(f"On: {rule['name']}", value=rule['active'], key=f"p_on_{i}")
-            rule['keywords'] = st.text_area(f"Keys ({rule['name']})", value=rule['keywords'], key=f"p_k_{i}", height=60)
+uploaded_file = st.file_uploader("Augšupielādēt Bankas CSV", type="csv")
 
-# --- 5. PROCESSING LOGIC ---
-st.title(t["title"])
-file_upload = st.file_uploader(t["upload"], type="csv")
-
-if file_upload:
+if uploaded_file:
     try:
-        df_raw = pd.read_csv(file_upload, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
-        mask = df_raw.stack().str.contains('Turnover|balance|Apgrozījums|Atlikums', case=False, na=False).unstack().any(axis=1)
-        df_filtered = df_raw[~mask].copy()
-        df_filtered = df_filtered[df_filtered[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)]
+        df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8')
+        df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        # --- THIS DEFINES df_proc ---
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
-        partner = df_filtered[3].apply(parse_partner).apply(pd.Series).fillna("")
-        df_proc['Name Surname'] = partner['Name']
-        df_proc['Personal Code'] = partner['P_Code']
-        df_proc['Konta numurs'] = partner['Account']
-        df_proc['Bankas SWIFT'] = partner['SWIFT']
+        df_proc['Name'] = df_filtered[3].str.split('|').str[0].str.strip()
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
-        raw_amt = df_filtered[5].astype(str).str.replace(',', '.', regex=False)
-        num_amt = pd.to_numeric(raw_amt, errors='coerce')
-        sign = df_filtered[7]
-        df_proc['K (KREDITS)'] = num_amt.where(sign == 'K')
-        df_proc['D (DEBETS)'] = num_amt.where(sign == 'D')
+        amounts = pd.to_numeric(df_filtered[5].str.replace(',', '.'), errors='coerce')
+        df_proc['Credit'] = amounts.where(df_filtered[7] == 'K')
+        df_proc['Debit'] = amounts.where(df_filtered[7] == 'D')
         
-        search_txt = df_filtered[3].fillna('') + " " + df_filtered[4].fillna('')
-        df_proc['Category'] = search_txt.apply(lambda x: classify(x, st.session_state.cat_rules))
-        df_proc['Project Name'] = search_txt.apply(lambda x: classify(x, st.session_state.proj_rules))
-        df_proc['Commentary'] = ""
-        
-        df_final = df_proc.sort_values(by='Date')
+        txt = df_filtered[3].fillna('') + " " + df_filtered[4].fillna('')
+        df_proc['Category'] = txt.apply(lambda x: classify(x, st.session_state.cat_rules))
+        df_proc['Project'] = txt.apply(lambda x: classify(x, st.session_state.proj_rules))
 
-        # Create Excel in memory
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            cols = ['Date', 'Name Surname', 'Personal Code', 'Konta numurs', 'Bankas SWIFT', 'Purpose', 'K (KREDITS)', 'D (DEBETS)', 'Category', 'Project Name', 'Commentary']
-            df_final[cols].to_excel(writer, index=False, sheet_name="Report")
-        excel_data = output.getvalue()
-
-        # --- DISPLAY BUTTONS ---
+            df_proc.to_excel(writer, index=False, sheet_name="Atskaite")
+        
         st.divider()
-        c1, c2 = st.columns(2)
-        with c1:
-            st.download_button(t["dl"], excel_data, f"YF_Report_{datetime.now().strftime('%Y%m%d')}.xlsx")
-        with c2:
-            if st.button(t["sheets"]):
-                output.seek(0)
-                web_link = upload_to_drive(output, f"Report_{datetime.now().strftime('%d-%m_%H-%M')}.xlsx")
-                if web_link:
-                    st.markdown(f'<a href="{web_link}" target="_blank" style="text-decoration:none;"><div style="background-color:#0F9D58;color:white;padding:15px;border-radius:8px;text-align:center;font-weight:bold;">🔗 OPEN IN GOOGLE SHEETS</div></a>', unsafe_allow_html=True)
-
+        if st.button("🚀 SAGLABĀT UN ATVĒRT GOOGLE SHEETS"):
+            output.seek(0)
+            fname = f"Atskaite_{datetime.now().strftime('%d-%m_%H-%M')}.xlsx"
+            link = upload_to_drive(output, fname)
+            if link:
+                st.markdown(f'''<a href="{link}" target="_blank" style="text-decoration:none;">
+                    <div style="background-color:#0F9D58;color:white;padding:20px;border-radius:10px;text-align:center;font-size:20px;font-weight:bold;">
+                    🔗 SPIED ŠEIT, LAI ATVĒRTU ONLINE
+                    </div></a>''', unsafe_allow_html=True)
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Kļūda apstrādē: {e}")

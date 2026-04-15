@@ -11,7 +11,7 @@ from datetime import datetime
 CLIENT_ID = st.secrets["google_oauth"]["client_id"]
 CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
 # ŠEIT ieraksti savas lietotnes adresi (beidzas ar .streamlit.app/)
-REDIRECT_URI = "https://your-app-name.streamlit.app/" 
+REDIRECT_URI = "https://bank-automator.streamlit.app/"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # --- 2. AUTENTIFIKĀCIJA ---

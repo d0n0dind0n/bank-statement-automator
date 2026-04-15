@@ -37,9 +37,10 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. THE DATA LISTS FOR DROPDOWNS ---
+# --- 3. DATA LISTS ---
+# Added a blank/select option at the start to trigger validation correctly
 CAT_OPTIONS = [
-    "Membership YF kids", "Membership YF teens", "Membership Youth", 
+    "Choose Category", "Membership YF kids", "Membership YF teens", "Membership Youth", 
     "Membership Forever Young", "Membership & Donations", "Salaries NVA", 
     "Salaries YF Main", "Salaries projekti", "Salaries nodokļi", 
     "YF Travel Japan", "YF Travel New York", "YF Travel Iceland", 
@@ -48,44 +49,13 @@ CAT_OPTIONS = [
 ]
 
 PROJ_OPTIONS = [
-    "NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", 
+    "Choose Project", "NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", 
     "Youth Podcast Station (300B)", "Youth Work Bus (500B)", 
     "Young Business (KA210)", "Zemlya (101239301)", "SHIFT (KA210)", 
     "Līderu Skola (GEAR UP!)", "Young Folks"
 ]
 
-# Mapping for Auto-Classification Keywords
-CAT_KEYWORDS = {
-    "Membership YF kids": ["yf kids", "biedra nauda kids"],
-    "Membership YF teens": ["yf teens", "biedra nauda teens"],
-    "Membership Youth": ["youth membership", "jauniešu biedra nauda"],
-    "Membership & Donations": ["biedru maksa", "dalības maksa", "ziedojums"],
-    "Salaries NVA": ["alga nva", "nva alga"],
-    "Salaries nodokļi": ["vsaoi", "iin", "nodokļi"],
-    "YF Travel Japan": ["japan", "japāna", "tokija"],
-    "YF Travel New York": ["new york", "nyc", "ņujorka"],
-    "Logistics & Travel": ["pirkums", "citybee", "bolt"],
-    "Services Office Rent": ["office rent", "biroja noma"],
-    "Operational Expenses": ["komisija", "apkalpošana"]
-}
-
-PROJ_KEYWORDS = {
-    "NVA / ESF": ["nva", "esf", "4.3.3.2"],
-    "DiscoverEU (200B)": ["200b", "discovereu"],
-    "Youth Identity Hub (400B)": ["400b", "identity hub"],
-    "Youth Podcast Station (300B)": ["300b", "podcast"],
-    "SHIFT (KA210)": ["shift", "ka210"]
-}
-
-# --- 4. FUNCTIONS ---
-def classify(text, keywords_dict):
-    text = str(text).lower()
-    for category, keys in keywords_dict.items():
-        for k in keys:
-            if k in text:
-                return category
-    return ""
-
+# --- 4. UPLOAD FUNCTION ---
 def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])
@@ -106,7 +76,7 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 5. PROCESSING ---
-st.title("🏦 Bank to Sheets: Dual Dropdowns")
+st.title("🏦 Bank to Sheets: Fixed Dual Dropdowns")
 
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
@@ -124,15 +94,12 @@ if uploaded_file:
         df_proc['Income'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['Expense'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Smart Auto-Classification
-        search_txt = df_proc['Partner'] + " " + df_proc['Purpose']
-        df_proc['Category'] = search_txt.apply(lambda x: classify(x, CAT_KEYWORDS))
-        df_proc['Project'] = search_txt.apply(lambda x: classify(x, PROJ_KEYWORDS))
+        # Initialize columns with the first "dummy" option
+        df_proc['Category'] = "Choose Category"
+        df_proc['Project'] = "Choose Project"
         df_proc['Commentary'] = ""
 
-        st.info(f"Analyzed {len(df_proc)} transactions.")
-
-        if st.button("🚀 CONVERT & OPEN IN GOOGLE DRIVE"):
+        if st.button("🚀 CONVERT & OPEN GOOGLE SHEET"):
             output = io.BytesIO()
             
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -140,24 +107,24 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # --- APPLY DROPDOWN SYSTEM TO BOTH COLUMNS ---
-                # Column F: Category
-                worksheet.data_validation('F2:F2000', {
+                # RE-APPLYING VALIDATION STRATEGICALLY
+                # Column F (Index 5)
+                worksheet.data_validation(1, 5, 1000, 5, {
                     'validate': 'list',
                     'source': CAT_OPTIONS,
-                    'input_title': 'Select Category',
-                    'input_message': 'Pick a category from the list'
+                    'error_message': 'Please select a category from the list',
+                    'ignore_blank': True
                 })
                 
-                # Column G: Project
-                worksheet.data_validation('G2:G2000', {
+                # Column G (Index 6)
+                worksheet.data_validation(1, 6, 1000, 6, {
                     'validate': 'list',
                     'source': PROJ_OPTIONS,
-                    'input_title': 'Select Project',
-                    'input_message': 'Pick a project from the list'
+                    'error_message': 'Please select a project from the list',
+                    'ignore_blank': True
                 })
                 
-                # Sheet Formatting
+                # Formatting and Widths
                 header_fmt = workbook.add_format({'bold': True, 'bg_color': '#CFE2F3', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
@@ -168,10 +135,9 @@ if uploaded_file:
                 worksheet.set_column('F:G', 30)
 
             output.seek(0)
-            fname = f"Bank_Atskaite_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            fname = f"Bank_Atskaite_{datetime.now().strftime('%H%M')}"
             
-            with st.spinner("Processing..."):
-                link = upload_and_convert(output, fname)
+            link = upload_and_convert(output, fname)
             
             if link:
                 st.markdown(f'''<a href="{link}" target="_blank" style="text-decoration:none;">

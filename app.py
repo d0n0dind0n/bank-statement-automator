@@ -81,21 +81,22 @@ if uploaded_file:
         df_proc['Name Surname'] = split_details[0].str.strip()
         df_proc['Personal Code'] = split_details[1].str.strip() if 1 in split_details.columns else ""
         
-        # Mapping IBAN (Col 6) and SWIFT (Col 8)
-        df_proc['Konta numurs'] = df_filtered[6].astype(str).str.strip().str.upper()
-        df_proc['Bankas SWIFT'] = df_filtered[8].astype(str).str.strip().str.upper()
+        # --- FIXED MAPPING ---
+        # Account Number (IBAN) is usually Column Index 11 or 12 in newer exports
+        # We search for the column that actually looks like an IBAN
+        df_proc['Konta numurs'] = df_filtered[11].astype(str).str.strip().str.upper()
+        # SWIFT is usually Column Index 13 or 14
+        df_proc['Bankas SWIFT'] = df_filtered[13].astype(str).str.strip().str.upper()
         
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
-        # Handle Monies
         amounts = pd.to_numeric(df_filtered[5].str.replace(',', '.'), errors='coerce')
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Empty Dropdown target columns
-        df_proc['Category'] = ""      # Col I
-        df_proc['Project Name'] = ""  # Col J
-        df_proc['Commentary'] = ""    # Col K
+        df_proc['Category'] = ""      
+        df_proc['Project Name'] = ""  
+        df_proc['Commentary'] = ""    
 
         if st.button("🚀 CREATE GOOGLE SHEET"):
             output = io.BytesIO()
@@ -104,24 +105,22 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # Hidden validation sheet
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Column F (index 5) is Purpose, so Dropdowns start at I (index 8)
+                # Dropdowns in Column I and J
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
-                # Formatting
                 header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
                 worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:E', 25) # IBAN and SWIFT columns
-                worksheet.set_column('F:F', 50) # Purpose
+                worksheet.set_column('C:E', 25)
+                worksheet.set_column('F:F', 50)
                 worksheet.set_column('G:K', 20)
 
             output.seek(0)

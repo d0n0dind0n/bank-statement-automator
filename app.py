@@ -65,36 +65,46 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 5. PROCESSING ---
-st.title("🏦 Bank to Sheets: New Column Structure")
+st.title("🏦 Bank to Sheets Automator")
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
+        # Load CSV
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
+        
+        # Filter rows that actually contain a date in column index 2
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        # Build DataFrame according to your image
+        # Build DataFrame based on your image structure
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
-        df_proc['Name Surname'] = df_filtered[3].str.split('|').str[0].str.strip()
         
-        # Extracting data from column 3 (often contains Account/Swift/Code in CSV)
-        # We split by '|' to get the secondary data if available
-        details = df_filtered[3].str.split('|')
-        df_proc['Personal Code'] = details.str[1] if len(details.columns) > 1 else ""
-        df_proc['Konta numurs'] = df_filtered[6].fillna("") # Usually column 6 in these CSVs
-        df_proc['Bankas SWIFT'] = "" 
+        # Extract Name and Personal Code from column index 3
+        # We use expand=True to safely turn the split into a DataFrame
+        split_details = df_filtered[3].str.split('|', expand=True)
+        
+        df_proc['Name Surname'] = split_details[0].str.strip()
+        # If there is no second part after '|', it fills with empty string
+        df_proc['Personal Code'] = split_details[1].str.strip() if 1 in split_details.columns else ""
+        
+        # Konta numurs is usually column index 6
+        df_proc['Konta numurs'] = df_filtered[6].fillna("")
+        df_proc['Bankas SWIFT'] = "" # Leave empty for manual entry or future mapping
         
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
+        # Handle Money
         amounts = pd.to_numeric(df_filtered[5].str.replace(',', '.'), errors='coerce')
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Target Columns for Dropdowns
-        df_proc['Category'] = ""      # Column I
-        df_proc['Project Name'] = ""  # Column J
-        df_proc['Commentary'] = ""    # Column K
+        # Target Dropdown Columns
+        df_proc['Category'] = ""      # Col I (Index 8)
+        df_proc['Project Name'] = ""  # Col J (Index 9)
+        df_proc['Commentary'] = ""    # Col K (Index 10)
+
+        st.info(f"Transactions found: {len(df_proc)}")
 
         if st.button("🚀 CREATE GOOGLE SHEET"):
             output = io.BytesIO()
@@ -103,28 +113,29 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # Hidden sheet for validation lists (more stable for Google Sheets)
+                # Hidden sheet for dropdown lists
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Column I (Category) is index 8 | Column J (Project) is index 9
-                worksheet.data_validation('I2:I1000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
-                worksheet.data_validation('J2:J1000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
+                # Dropdowns: Column I (Index 8) and J (Index 9)
+                worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
+                worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
-                # Header Formatting
-                header_fmt = workbook.add_format({'bold': True, 'bg_color': '#EFEFEF', 'border': 1})
+                # Format Header
+                header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
+                # Column widths
                 worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:E', 20)
-                worksheet.set_column('F:F', 40)
-                worksheet.set_column('G:K', 20)
+                worksheet.set_column('C:E', 22)
+                worksheet.set_column('F:F', 45)
+                worksheet.set_column('G:K', 18)
 
             output.seek(0)
-            fname = f"Bank_Atskaite_{datetime.now().strftime('%Y%m%d')}"
+            fname = f"Bank_Atskaite_{datetime.now().strftime('%Y%m%d_%H%M')}"
             link = upload_and_convert(output, fname)
             
             if link:

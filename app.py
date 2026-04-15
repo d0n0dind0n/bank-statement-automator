@@ -58,41 +58,47 @@ uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
-        # Load CSV with correct delimiter
+        # Load CSV
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
         
-        # Filter rows containing dates in column 2
+        # Filter rows with transaction dates in column index 2
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        # Helper function to parse Column 3 (the detail bundle)
+        # UPDATED extraction logic for Column 3
         def parse_partner_details(val):
-            if not val: return "", "", ""
+            if not val: return "", "", "", ""
             parts = [p.strip() for p in str(val).split('|')]
             name = parts[0]
+            personal_code = ""
             iban = ""
             swift = ""
             
             for p in parts[1:]:
                 clean = p.replace(" ", "").upper()
-                # IBAN: Starts with 2 letters and is long
-                if len(clean) >= 15 and clean[0:2].isalpha():
+                # 1. Personal Code (Pattern: 123456-12345)
+                if re.match(r'^\d{6}-\d{5}$', clean):
+                    personal_code = clean
+                # 2. IBAN (Starts with letters, usually 15-30 chars)
+                elif len(clean) >= 15 and clean[0:2].isalpha():
                     iban = clean
-                # SWIFT: 8 or 11 characters
+                # 3. SWIFT (8 or 11 characters)
                 elif len(clean) in [8, 11] and clean[0:4].isalpha():
                     swift = clean
-            return name, iban, swift
+            return name, personal_code, iban, swift
 
-        # Apply parsing
+        # Apply parsing to column index 3
         parsed_data = df_filtered[3].apply(parse_partner_details)
         
+        # Build Report DataFrame
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         df_proc['Name Surname'] = [x[0] for x in parsed_data]
-        df_proc['Personal Code'] = "" # Personal code extraction if needed
-        df_proc['Konta numurs'] = [x[1] for x in parsed_data]
-        df_proc['Bankas SWIFT'] = [x[2] for x in parsed_data]
+        df_proc['Personal Code'] = [x[1] for x in parsed_data] # <--- PERSONAL CODE NOW INCLUDED
+        df_proc['Konta numurs'] = [x[2] for x in parsed_data]
+        df_proc['Bankas SWIFT'] = [x[3] for x in parsed_data]
         df_proc['Purpose'] = df_filtered[4]
         
+        # Monetary data
         amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce')
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
@@ -108,12 +114,13 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
+                # Validation Lists
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Set Dropdowns for Col I (8) and Col J (9)
+                # Column I (index 8) and J (index 9) Dropdowns
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
@@ -121,9 +128,10 @@ if uploaded_file:
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
-                worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:E', 28) 
-                worksheet.set_column('F:F', 50) 
+                # Column widths for visibility
+                worksheet.set_column('A:B', 15) # Date & Name
+                worksheet.set_column('C:E', 28) # Code, IBAN, SWIFT
+                worksheet.set_column('F:F', 50) # Purpose
                 worksheet.set_column('G:K', 20)
 
             output.seek(0)

@@ -38,9 +38,34 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. DATA LISTS ---
+# --- 3. DATA LISTS & AUTO-FILTERS ---
 CAT_OPTIONS = ["Membership YF kids", "Membership YF teens", "Membership Youth", "Membership Forever Young", "Membership & Donations", "Salaries NVA", "Salaries YF Main", "Salaries projekti", "Salaries nodokļi", "YF Travel Japan", "YF Travel New York", "YF Travel Iceland", "Logistics & Travel", "Services Office Rent", "Operational Expenses", "Office supplies", "Rent & Admin"]
 PROJ_OPTIONS = ["NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", "Youth Podcast Station (300B)", "Youth Work Bus (500B)", "Young Business (KA210)", "Zemlya (101239301)", "SHIFT (KA210)", "Līderu Skola (GEAR UP!)", "Young Folks"]
+
+# Auto-selection Keywords
+CAT_FILTER = {
+    "Dalības maksa": "Membership & Donations",
+    "Ziedojums": "Membership & Donations",
+    "Alga": "Salaries YF Main",
+    "Nodokļi": "Salaries nodokļi",
+    "Rent": "Services Office Rent",
+    "Noma": "Services Office Rent",
+    "Japan": "YF Travel Japan",
+    "Iceland": "YF Travel Iceland",
+    "New York": "YF Travel New York",
+    "Office": "Office supplies"
+}
+
+PROJ_FILTER = {
+    "200B": "DiscoverEU (200B)",
+    "300B": "Youth Podcast Station (300B)",
+    "400B": "Youth Identity Hub (400B)",
+    "500B": "Youth Work Bus (500B)",
+    "Zemlya": "Zemlya (101239301)",
+    "SHIFT": "SHIFT (KA210)",
+    "NVA": "NVA / ESF",
+    "ESF": "NVA / ESF"
+}
 
 # --- 4. DRIVE UPLOAD ---
 def upload_and_convert(file_data, file_name):
@@ -53,59 +78,56 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 5. DATA PROCESSING ---
-st.title("🏦 Bank to Sheets Automator")
+st.title("🏦 Bank Automator: Auto-Selection Active")
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
-        # Load CSV
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
-        
-        # Filter rows with transaction dates in column index 2
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        # UPDATED extraction logic for Column 3
         def parse_partner_details(val):
             if not val: return "", "", "", ""
             parts = [p.strip() for p in str(val).split('|')]
             name = parts[0]
-            personal_code = ""
-            iban = ""
-            swift = ""
-            
+            p_code, iban, swift = "", "", ""
             for p in parts[1:]:
                 clean = p.replace(" ", "").upper()
-                # 1. Personal Code (Pattern: 123456-12345)
-                if re.match(r'^\d{6}-\d{5}$', clean):
-                    personal_code = clean
-                # 2. IBAN (Starts with letters, usually 15-30 chars)
-                elif len(clean) >= 15 and clean[0:2].isalpha():
-                    iban = clean
-                # 3. SWIFT (8 or 11 characters)
-                elif len(clean) in [8, 11] and clean[0:4].isalpha():
-                    swift = clean
-            return name, personal_code, iban, swift
+                if re.match(r'^\d{6}-\d{5}$', clean): p_code = clean
+                elif len(clean) >= 15 and clean[0:2].isalpha(): iban = clean
+                elif len(clean) in [8, 11] and clean[0:4].isalpha(): swift = clean
+            return name, p_code, iban, swift
 
-        # Apply parsing to column index 3
         parsed_data = df_filtered[3].apply(parse_partner_details)
         
-        # Build Report DataFrame
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         df_proc['Name Surname'] = [x[0] for x in parsed_data]
-        df_proc['Personal Code'] = [x[1] for x in parsed_data] # <--- PERSONAL CODE NOW INCLUDED
+        df_proc['Personal Code'] = [x[1] for x in parsed_data]
         df_proc['Konta numurs'] = [x[2] for x in parsed_data]
         df_proc['Bankas SWIFT'] = [x[3] for x in parsed_data]
         df_proc['Purpose'] = df_filtered[4]
         
-        # Monetary data
         amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce')
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        df_proc['Category'] = ""      
-        df_proc['Project Name'] = ""  
-        df_proc['Commentary'] = ""    
+        # --- AUTO-SELECTION LOGIC ---
+        def get_auto_cat(row):
+            text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
+            for kw, cat in CAT_FILTER.items():
+                if kw.lower() in text: return cat
+            return ""
+
+        def get_auto_proj(row):
+            text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
+            for kw, proj in PROJ_FILTER.items():
+                if kw.lower() in text: return proj
+            return "Young Folks" # Default project
+
+        df_proc['Category'] = df_proc.apply(get_auto_cat, axis=1)
+        df_proc['Project Name'] = df_proc.apply(get_auto_proj, axis=1)
+        df_proc['Commentary'] = ""
 
         if st.button("🚀 CREATE GOOGLE SHEET"):
             output = io.BytesIO()
@@ -114,13 +136,11 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # Validation Lists
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Column I (index 8) and J (index 9) Dropdowns
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
@@ -128,14 +148,13 @@ if uploaded_file:
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
-                # Column widths for visibility
-                worksheet.set_column('A:B', 15) # Date & Name
-                worksheet.set_column('C:E', 28) # Code, IBAN, SWIFT
-                worksheet.set_column('F:F', 50) # Purpose
+                worksheet.set_column('A:B', 15)
+                worksheet.set_column('C:E', 28) 
+                worksheet.set_column('F:F', 50) 
                 worksheet.set_column('G:K', 20)
 
             output.seek(0)
-            fname = f"Bank_Export_{datetime.now().strftime('%H%M')}"
+            fname = f"Bank_Automated_{datetime.now().strftime('%H%M')}"
             link = upload_and_convert(output, fname)
             
             if link:

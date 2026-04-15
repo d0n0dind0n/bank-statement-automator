@@ -5,6 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from requests_oauthlib import OAuth2Session
 from datetime import datetime
+import re
 
 # --- 1. CONFIGURATION ---
 REDIRECT_URI = "https://bank-statement-automator-wm4atvbmldyrwdehnbnkzb.streamlit.app/"
@@ -38,21 +39,8 @@ if st.session_state.auth_creds is None:
     st.stop()
 
 # --- 3. DATA LISTS ---
-CAT_OPTIONS = [
-    "Membership YF kids", "Membership YF teens", "Membership Youth", 
-    "Membership Forever Young", "Membership & Donations", "Salaries NVA", 
-    "Salaries YF Main", "Salaries projekti", "Salaries nodokļi", 
-    "YF Travel Japan", "YF Travel New York", "YF Travel Iceland", 
-    "Logistics & Travel", "Services Office Rent", "Operational Expenses", 
-    "Office supplies", "Rent & Admin"
-]
-
-PROJ_OPTIONS = [
-    "NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", 
-    "Youth Podcast Station (300B)", "Youth Work Bus (500B)", 
-    "Young Business (KA210)", "Zemlya (101239301)", "SHIFT (KA210)", 
-    "Līderu Skola (GEAR UP!)", "Young Folks"
-]
+CAT_OPTIONS = ["Membership YF kids", "Membership YF teens", "Membership Youth", "Membership Forever Young", "Membership & Donations", "Salaries NVA", "Salaries YF Main", "Salaries projekti", "Salaries nodokļi", "YF Travel Japan", "YF Travel New York", "YF Travel Iceland", "Logistics & Travel", "Services Office Rent", "Operational Expenses", "Office supplies", "Rent & Admin"]
+PROJ_OPTIONS = ["NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", "Youth Podcast Station (300B)", "Youth Work Bus (500B)", "Young Business (KA210)", "Zemlya (101239301)", "SHIFT (KA210)", "Līderu Skola (GEAR UP!)", "Young Folks"]
 
 # --- 4. DRIVE UPLOAD ---
 def upload_and_convert(file_data, file_name):
@@ -70,27 +58,36 @@ uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
-        df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
+        df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         
-        # Split Name/Code from column 3
         split_details = df_filtered[3].str.split('|', expand=True)
         df_proc['Name Surname'] = split_details[0].str.strip()
         df_proc['Personal Code'] = split_details[1].str.strip() if 1 in split_details.columns else ""
+
+        # --- SMART SEARCH FOR IBAN AND SWIFT ---
+        def find_iban(row):
+            for val in row:
+                if re.match(r'^[A-Z]{2}\d{2}[A-Z0-9]{10,}', str(val).strip().upper()):
+                    return str(val).strip().upper()
+            return ""
+
+        def find_swift(row):
+            for val in row:
+                s = str(val).strip().upper()
+                if re.match(r'^[A-Z]{6}[A-Z0-9]{2,5}', s) and "EUR" not in s:
+                    return s
+            return ""
+
+        df_proc['Konta numurs'] = df_filtered.apply(find_iban, axis=1)
+        df_proc['Bankas SWIFT'] = df_filtered.apply(find_swift, axis=1)
         
-        # --- FIXED MAPPING ---
-        # Account Number (IBAN) is usually Column Index 11 or 12 in newer exports
-        # We search for the column that actually looks like an IBAN
-        df_proc['Konta numurs'] = df_filtered[11].astype(str).str.strip().str.upper()
-        # SWIFT is usually Column Index 13 or 14
-        df_proc['Bankas SWIFT'] = df_filtered[13].astype(str).str.strip().str.upper()
+        df_proc['Purpose'] = df_filtered[4]
         
-        df_proc['Purpose'] = df_filtered[4].fillna("")
-        
-        amounts = pd.to_numeric(df_filtered[5].str.replace(',', '.'), errors='coerce')
+        amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce')
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
@@ -110,7 +107,6 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Dropdowns in Column I and J
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
@@ -124,7 +120,7 @@ if uploaded_file:
                 worksheet.set_column('G:K', 20)
 
             output.seek(0)
-            fname = f"Bank_Export_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            fname = f"Bank_Atskaite_{datetime.now().strftime('%H%M')}"
             link = upload_and_convert(output, fname)
             
             if link:
@@ -134,4 +130,4 @@ if uploaded_file:
                     </div></a>''', unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Something went wrong. Technical details: {e}")

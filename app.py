@@ -59,24 +59,13 @@ def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])
     service = build('drive', 'v3', credentials=creds)
-    
-    file_metadata = {
-        'name': file_name,
-        'mimeType': 'application/vnd.google-apps.spreadsheet' 
-    }
-    
-    media = MediaIoBaseUpload(
-        file_data, 
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        resumable=True
-    )
-    
+    file_metadata = {'name': file_name, 'mimeType': 'application/vnd.google-apps.spreadsheet'}
+    media = MediaIoBaseUpload(file_data, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
     file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
     return file.get('webViewLink')
 
 # --- 5. PROCESSING ---
-st.title("🏦 Bank to Sheets: Fixed Column F Dropdowns")
-
+st.title("🏦 Bank to Sheets: New Column Structure")
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
@@ -84,63 +73,58 @@ if uploaded_file:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
+        # Build DataFrame according to your image
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
-        df_proc['Partner'] = df_filtered[3].str.split('|').str[0].str.strip()
+        df_proc['Name Surname'] = df_filtered[3].str.split('|').str[0].str.strip()
+        
+        # Extracting data from column 3 (often contains Account/Swift/Code in CSV)
+        # We split by '|' to get the secondary data if available
+        details = df_filtered[3].str.split('|')
+        df_proc['Personal Code'] = details.str[1] if len(details.columns) > 1 else ""
+        df_proc['Konta numurs'] = df_filtered[6].fillna("") # Usually column 6 in these CSVs
+        df_proc['Bankas SWIFT'] = "" 
+        
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
         amounts = pd.to_numeric(df_filtered[5].str.replace(',', '.'), errors='coerce')
-        df_proc['Income'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
-        df_proc['Expense'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
+        df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
+        df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Start with empty cells (no "Select" text)
-        df_proc['Category'] = ""
-        df_proc['Project'] = ""
-        df_proc['Commentary'] = ""
+        # Target Columns for Dropdowns
+        df_proc['Category'] = ""      # Column I
+        df_proc['Project Name'] = ""  # Column J
+        df_proc['Commentary'] = ""    # Column K
 
-        if st.button("🚀 CONVERT & OPEN GOOGLE SHEET"):
+        if st.button("🚀 CREATE GOOGLE SHEET"):
             output = io.BytesIO()
-            
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # 1. Write the main report
                 df_proc.to_excel(writer, index=False, sheet_name='BankReport')
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # 2. Write dropdown options to a HIDDEN sheet
-                # This bypasses the length limit for Column F
+                # Hidden sheet for validation lists (more stable for Google Sheets)
                 options_sheet = workbook.add_worksheet('HiddenData')
-                for i, cat in enumerate(CAT_OPTIONS):
-                    options_sheet.write(i, 0, cat)
-                for i, proj in enumerate(PROJ_OPTIONS):
-                    options_sheet.write(i, 1, proj)
+                for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
+                for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # 3. Apply Data Validation using the hidden sheet references
-                # Column F (Category) -> HiddenData Sheet Column A
-                worksheet.data_validation('F2:F1000', {
-                    'validate': 'list',
-                    'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'
-                })
+                # Column I (Category) is index 8 | Column J (Project) is index 9
+                worksheet.data_validation('I2:I1000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
+                worksheet.data_validation('J2:J1000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
-                # Column G (Project) -> HiddenData Sheet Column B
-                worksheet.data_validation('G2:G1000', {
-                    'validate': 'list',
-                    'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'
-                })
-                
-                # Formatting
-                header_fmt = workbook.add_format({'bold': True, 'bg_color': '#CFE2F3', 'border': 1})
+                # Header Formatting
+                header_fmt = workbook.add_format({'bold': True, 'bg_color': '#EFEFEF', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
                 worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:C', 50)
-                worksheet.set_column('D:E', 15)
-                worksheet.set_column('F:G', 30)
+                worksheet.set_column('C:E', 20)
+                worksheet.set_column('F:F', 40)
+                worksheet.set_column('G:K', 20)
 
             output.seek(0)
-            fname = f"Bank_Atskaite_{datetime.now().strftime('%H%M')}"
+            fname = f"Bank_Atskaite_{datetime.now().strftime('%Y%m%d')}"
             link = upload_and_convert(output, fname)
             
             if link:

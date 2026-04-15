@@ -5,7 +5,6 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from requests_oauthlib import OAuth2Session
 from datetime import datetime
-import re
 
 # --- 1. CONFIGURATION ---
 REDIRECT_URI = "https://bank-statement-automator-wm4atvbmldyrwdehnbnkzb.streamlit.app/"
@@ -58,45 +57,34 @@ uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
-        # Load raw data safely
+        # Load raw data - using low_memory=False to handle mixed types
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
+        
+        # Filter for rows that have a date format (DD.MM.YYYY) in column 2
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         
-        # Name and Personal Code
+        # Name and Personal Code from Column 3
         split_details = df_filtered[3].str.split('|', expand=True)
         df_proc['Name Surname'] = split_details[0].str.strip()
         df_proc['Personal Code'] = split_details[1].str.strip() if 1 in split_details.columns else ""
 
-        # --- REFINED EXTRACTION LOGIC ---
-        def extract_bank_info(row):
-            iban = ""
-            swift = ""
-            # Common patterns for IBAN (LV, LT, EE...) and BIC/SWIFT
-            iban_pattern = re.compile(r'^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$')
-            swift_pattern = re.compile(r'^[A-Z]{6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3})?$')
-            
-            for val in row:
-                s = str(val).strip().replace(" ", "").upper()
-                if iban_pattern.match(s):
-                    iban = s
-                elif swift_pattern.match(s) and s not in ["CREDIT", "DEBIT", "STATUS"]:
-                    swift = s
-            return pd.Series([iban, swift])
-
-        # Apply extraction to get both IBAN and SWIFT
-        df_proc[['Konta numurs', 'Bankas SWIFT']] = df_filtered.apply(extract_bank_info, axis=1)
+        # --- PRECISE COLUMN MAPPING ---
+        # Partner Account (IBAN) is usually in Column Index 6
+        # Partner SWIFT/BIC is usually in Column Index 8
+        df_proc['Konta numurs'] = df_filtered[6].astype(str).str.replace(" ", "").str.upper()
+        df_proc['Bankas SWIFT'] = df_filtered[8].astype(str).str.replace(" ", "").str.upper()
         
         df_proc['Purpose'] = df_filtered[4]
         
-        # Amounts
+        # Money handling
         amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce')
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Dropdown columns
+        # Placeholder columns for Sheet dropdowns
         df_proc['Category'] = ""      
         df_proc['Project Name'] = ""  
         df_proc['Commentary'] = ""    
@@ -108,29 +96,30 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # Hidden lists for dropdowns
+                # Hidden validation sheet
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Column I (8) and J (9) validation
+                # Set Data Validation (Dropdowns) for Category (I) and Project (J)
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
-                # Formatting
+                # Format Headers
                 header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
+                # Auto-adjust column widths for readability
                 worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:C', 20) # Personal Code
-                worksheet.set_column('D:E', 28) # IBAN and SWIFT
-                worksheet.set_column('F:F', 50) # Purpose
+                worksheet.set_column('C:C', 20) 
+                worksheet.set_column('D:E', 28) 
+                worksheet.set_column('F:F', 50) 
                 worksheet.set_column('G:K', 20)
 
             output.seek(0)
-            fname = f"Bank_Export_{datetime.now().strftime('%H%M')}"
+            fname = f"Bank_Export_{datetime.now().strftime('%Y%m%d_%H%M')}"
             link = upload_and_convert(output, fname)
             
             if link:

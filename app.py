@@ -14,7 +14,7 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-# --- 2. AUTHENTICATION LOGIC ---
+# --- 2. AUTHENTICATION ---
 if 'auth_creds' not in st.session_state:
     st.session_state.auth_creds = None
 
@@ -37,7 +37,7 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. DROPDOWN LISTS ---
+# --- 3. THE DROPDOWN LISTS ---
 CAT_OPTIONS = [
     "Membership YF kids", "Membership YF teens", "Membership Youth", 
     "Membership Forever Young", "Membership & Donations", "Salaries NVA", 
@@ -54,13 +54,13 @@ PROJ_OPTIONS = [
     "Līderu Skola (GEAR UP!)", "Young Folks"
 ]
 
-# --- 4. THE UPLOAD & CONVERT FUNCTION ---
-def upload_and_convert_to_sheet(file_data, file_name):
+# --- 4. UPLOAD & CONVERT FUNCTION ---
+def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])
     service = build('drive', 'v3', credentials=creds)
     
-    # CRITICAL: This 'mimeType' converts the Excel file into a Google Sheet automatically
+    # mimeType ensures it opens directly in Google Sheets
     file_metadata = {
         'name': file_name,
         'mimeType': 'application/vnd.google-apps.spreadsheet' 
@@ -75,15 +75,13 @@ def upload_and_convert_to_sheet(file_data, file_name):
     file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
     return file.get('webViewLink')
 
-# --- 5. MAIN APP INTERFACE ---
-st.title("🏦 CSV to Google Sheets Automator")
-st.write("Upload your bank CSV. I will convert it and add dropdown menus for you.")
+# --- 5. PROCESSING ---
+st.title("🏦 CSV to Google Sheets with Dropdowns")
 
-uploaded_file = st.file_uploader("Choose Bank CSV", type="csv")
+uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
-        # 1. Read and Clean CSV
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip')
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
@@ -96,45 +94,60 @@ if uploaded_file:
         df_proc['Income'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['Expense'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Add the target columns for dropdowns
-        df_proc['Category'] = ""
-        df_proc['Project'] = ""
-        df_proc['Commentary'] = ""
+        # Add empty columns for dropdown targets
+        df_proc['Category'] = ""  # Column F
+        df_proc['Project'] = ""   # Column G
+        df_proc['Commentary'] = "" # Column H
 
-        st.success(f"Processed {len(df_proc)} transactions.")
+        st.dataframe(df_proc.head(10)) # Preview
 
-        if st.button("🚀 CONVERT & OPEN IN GOOGLE SHEETS"):
+        if st.button("🚀 CONVERT & OPEN GOOGLE SHEET"):
             output = io.BytesIO()
             
-            # Create Excel in memory with Data Validation (Dropdowns)
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_proc.to_excel(writer, index=False, sheet_name='BankData')
+                df_proc.to_excel(writer, index=False, sheet_name='BankReport')
                 workbook  = writer.book
-                worksheet = writer.sheets['BankData']
+                worksheet = writer.sheets['BankReport']
                 
-                # Apply dropdowns to Category (Column F) and Project (Column G)
-                # Setting range to 2000 rows to ensure all data is covered
-                worksheet.data_validation('F2:F2000', {'validate': 'list', 'source': CAT_OPTIONS})
-                worksheet.data_validation('G2:G2000', {'validate': 'list', 'source': PROJ_OPTIONS})
+                # --- APPLY DROPDOWNS ---
+                # Column F (Category) dropdown
+                worksheet.data_validation('F2:F2000', {
+                    'validate': 'list',
+                    'source': CAT_OPTIONS,
+                    'input_title': 'Choose Category',
+                    'input_message': 'Select from list'
+                })
                 
-                # Auto-adjust column widths for better readability
+                # Column G (Project) dropdown
+                worksheet.data_validation('G2:G2000', {
+                    'validate': 'list',
+                    'source': PROJ_OPTIONS,
+                    'input_title': 'Choose Project',
+                    'input_message': 'Select from list'
+                })
+                
+                # Format headers and column widths
+                header_format = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
+                for col_num, value in enumerate(df_proc.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                
                 worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:C', 40)
-                worksheet.set_column('D:E', 12)
-                worksheet.set_column('F:G', 25)
+                worksheet.set_column('C:C', 50)
+                worksheet.set_column('D:E', 15)
+                worksheet.set_column('F:G', 30)
 
             output.seek(0)
-            timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
-            final_name = f"Bank_Report_{timestamp}"
+            fname = f"Bank_Automator_{datetime.now().strftime('%Y%m%d_%H%M')}"
             
-            with st.spinner("Converting to Google Sheet..."):
-                link = upload_and_convert_to_sheet(output, final_name)
+            with st.spinner("Creating Google Sheet..."):
+                link = upload_and_convert(output, fname)
             
             if link:
                 st.markdown(f'''<a href="{link}" target="_blank" style="text-decoration:none;">
-                    <div style="background-color:#0F9D58;color:white;padding:25px;border-radius:12px;text-align:center;font-size:22px;font-weight:bold;">
-                    📊 CLICK HERE TO OPEN YOUR SHEET
+                    <div style="background-color:#0F9D58;color:white;padding:25px;border-radius:15px;text-align:center;font-size:22px;font-weight:bold;">
+                    📊 OPEN GOOGLE SHEET NOW
                     </div></a>''', unsafe_allow_html=True)
+                st.balloons()
 
     except Exception as e:
-        st.error(f"Something went wrong: {e}")
+        st.error(f"Error: {e}")

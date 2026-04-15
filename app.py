@@ -37,7 +37,7 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. ALL CATEGORIES & PROJECTS (FOR DROPDOWNS) ---
+# --- 3. ALL ORIGINAL CATEGORIES & PROJECTS ---
 CAT_OPTIONS = [
     "Membership YF kids", "Membership YF teens", "Membership Youth", 
     "Membership Forever Young", "Membership & Donations", "Salaries NVA", 
@@ -54,13 +54,36 @@ PROJ_OPTIONS = [
     "Līderu Skola (GEAR UP!)", "Young Folks"
 ]
 
+# Mapping for Auto-Classification
+CAT_KEYWORDS = {
+    "Membership YF kids": ["yf kids", "biedra nauda kids"],
+    "Membership YF teens": ["yf teens", "biedra nauda teens"],
+    "Membership Youth": ["youth membership", "jauniešu biedra nauda"],
+    "Membership & Donations": ["biedru maksa", "dalības maksa", "ziedojums"],
+    "Salaries NVA": ["alga nva", "nva alga"],
+    "Salaries nodokļi": ["vsaoi", "iin", "nodokļi"],
+    "YF Travel Japan": ["japan", "japāna", "tokija"],
+    "YF Travel New York": ["new york", "nyc", "ņujorka"],
+    "Logistics & Travel": ["pirkums", "citybee", "bolt"],
+    "Services Office Rent": ["office rent", "biroja noma"],
+    "Operational Expenses": ["komisija", "apkalpošana"]
+}
+
+PROJ_KEYWORDS = {
+    "NVA / ESF": ["nva", "esf", "4.3.3.2"],
+    "DiscoverEU (200B)": ["200b", "discovereu"],
+    "Youth Identity Hub (400B)": ["400b", "identity hub"],
+    "Youth Podcast Station (300B)": ["300b", "podcast"],
+    "SHIFT (KA210)": ["shift", "ka210"]
+}
+
 # --- 4. CLASSIFICATION LOGIC ---
-def auto_classify(text, options):
+def classify(text, keywords_dict):
     text = str(text).lower()
-    for opt in options:
-        # Check if any word of the category is in the text
-        if opt.lower() in text:
-            return opt
+    for category, keys in keywords_dict.items():
+        for k in keys:
+            if k in text:
+                return category
     return ""
 
 # --- 5. UPLOAD & CONVERT FUNCTION ---
@@ -84,7 +107,7 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 6. PROCESSING ---
-st.title("🏦 CSV to Google Sheets with Dropdowns")
+st.title("🏦 CSV to Google Sheets Automator")
 
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
@@ -102,13 +125,11 @@ if uploaded_file:
         df_proc['Income'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['Expense'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Apply Auto-Classification for initial guess
-        full_text = df_proc['Partner'] + " " + df_proc['Purpose']
-        df_proc['Category'] = full_text.apply(lambda x: auto_classify(x, CAT_OPTIONS))
-        df_proc['Project'] = full_text.apply(lambda x: auto_classify(x, PROJ_OPTIONS))
+        # Auto-Classify before creating dropdowns
+        search_txt = df_proc['Partner'] + " " + df_proc['Purpose']
+        df_proc['Category'] = search_txt.apply(lambda x: classify(x, CAT_KEYWORDS))
+        df_proc['Project'] = search_txt.apply(lambda x: classify(x, PROJ_KEYWORDS))
         df_proc['Commentary'] = ""
-
-        st.write(f"✅ Found {len(df_proc)} transactions. Ready to convert.")
 
         if st.button("🚀 CONVERT & OPEN GOOGLE SHEET"):
             output = io.BytesIO()
@@ -118,24 +139,11 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # --- INJECT DROPDOWNS ---
-                # F Column: Category
-                worksheet.data_validation('F2:F2000', {
-                    'validate': 'list',
-                    'source': CAT_OPTIONS
-                })
+                # Dropdowns for Column F (Category) and G (Project)
+                worksheet.data_validation('F2:F2000', {'validate': 'list', 'source': CAT_OPTIONS})
+                worksheet.data_validation('G2:G2000', {'validate': 'list', 'source': PROJ_OPTIONS})
                 
-                # G Column: Project
-                worksheet.data_validation('G2:G2000', {
-                    'validate': 'list',
-                    'source': PROJ_OPTIONS
-                })
-                
-                # Formatting
-                header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
-                for col_num, value in enumerate(df_proc.columns.values):
-                    worksheet.write(0, col_num, value, header_fmt)
-                
+                # Column formatting
                 worksheet.set_column('A:B', 15)
                 worksheet.set_column('C:C', 50)
                 worksheet.set_column('D:E', 15)
@@ -144,15 +152,13 @@ if uploaded_file:
             output.seek(0)
             fname = f"Bank_Automator_{datetime.now().strftime('%Y%m%d_%H%M')}"
             
-            with st.spinner("Uploading..."):
-                link = upload_and_convert(output, fname)
+            link = upload_and_convert(output, fname)
             
             if link:
                 st.markdown(f'''<a href="{link}" target="_blank" style="text-decoration:none;">
                     <div style="background-color:#0F9D58;color:white;padding:25px;border-radius:15px;text-align:center;font-size:22px;font-weight:bold;">
-                    📊 CLICK TO OPEN GOOGLE SHEET
+                    📊 OPEN GOOGLE SHEET
                     </div></a>''', unsafe_allow_html=True)
-                st.balloons()
 
     except Exception as e:
         st.error(f"Error: {e}")

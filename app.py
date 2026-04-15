@@ -37,7 +37,7 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. THE DROPDOWN LISTS ---
+# --- 3. ALL CATEGORIES & PROJECTS (FOR DROPDOWNS) ---
 CAT_OPTIONS = [
     "Membership YF kids", "Membership YF teens", "Membership Youth", 
     "Membership Forever Young", "Membership & Donations", "Salaries NVA", 
@@ -54,13 +54,21 @@ PROJ_OPTIONS = [
     "Līderu Skola (GEAR UP!)", "Young Folks"
 ]
 
-# --- 4. UPLOAD & CONVERT FUNCTION ---
+# --- 4. CLASSIFICATION LOGIC ---
+def auto_classify(text, options):
+    text = str(text).lower()
+    for opt in options:
+        # Check if any word of the category is in the text
+        if opt.lower() in text:
+            return opt
+    return ""
+
+# --- 5. UPLOAD & CONVERT FUNCTION ---
 def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])
     service = build('drive', 'v3', credentials=creds)
     
-    # mimeType ensures it opens directly in Google Sheets
     file_metadata = {
         'name': file_name,
         'mimeType': 'application/vnd.google-apps.spreadsheet' 
@@ -75,7 +83,7 @@ def upload_and_convert(file_data, file_name):
     file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
     return file.get('webViewLink')
 
-# --- 5. PROCESSING ---
+# --- 6. PROCESSING ---
 st.title("🏦 CSV to Google Sheets with Dropdowns")
 
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
@@ -94,12 +102,13 @@ if uploaded_file:
         df_proc['Income'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['Expense'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Add empty columns for dropdown targets
-        df_proc['Category'] = ""  # Column F
-        df_proc['Project'] = ""   # Column G
-        df_proc['Commentary'] = "" # Column H
+        # Apply Auto-Classification for initial guess
+        full_text = df_proc['Partner'] + " " + df_proc['Purpose']
+        df_proc['Category'] = full_text.apply(lambda x: auto_classify(x, CAT_OPTIONS))
+        df_proc['Project'] = full_text.apply(lambda x: auto_classify(x, PROJ_OPTIONS))
+        df_proc['Commentary'] = ""
 
-        st.dataframe(df_proc.head(10)) # Preview
+        st.write(f"✅ Found {len(df_proc)} transactions. Ready to convert.")
 
         if st.button("🚀 CONVERT & OPEN GOOGLE SHEET"):
             output = io.BytesIO()
@@ -109,27 +118,23 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # --- APPLY DROPDOWNS ---
-                # Column F (Category) dropdown
+                # --- INJECT DROPDOWNS ---
+                # F Column: Category
                 worksheet.data_validation('F2:F2000', {
                     'validate': 'list',
-                    'source': CAT_OPTIONS,
-                    'input_title': 'Choose Category',
-                    'input_message': 'Select from list'
+                    'source': CAT_OPTIONS
                 })
                 
-                # Column G (Project) dropdown
+                # G Column: Project
                 worksheet.data_validation('G2:G2000', {
                     'validate': 'list',
-                    'source': PROJ_OPTIONS,
-                    'input_title': 'Choose Project',
-                    'input_message': 'Select from list'
+                    'source': PROJ_OPTIONS
                 })
                 
-                # Format headers and column widths
-                header_format = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
+                # Formatting
+                header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
-                    worksheet.write(0, col_num, value, header_format)
+                    worksheet.write(0, col_num, value, header_fmt)
                 
                 worksheet.set_column('A:B', 15)
                 worksheet.set_column('C:C', 50)
@@ -139,13 +144,13 @@ if uploaded_file:
             output.seek(0)
             fname = f"Bank_Automator_{datetime.now().strftime('%Y%m%d_%H%M')}"
             
-            with st.spinner("Creating Google Sheet..."):
+            with st.spinner("Uploading..."):
                 link = upload_and_convert(output, fname)
             
             if link:
                 st.markdown(f'''<a href="{link}" target="_blank" style="text-decoration:none;">
                     <div style="background-color:#0F9D58;color:white;padding:25px;border-radius:15px;text-align:center;font-size:22px;font-weight:bold;">
-                    📊 OPEN GOOGLE SHEET NOW
+                    📊 CLICK TO OPEN GOOGLE SHEET
                     </div></a>''', unsafe_allow_html=True)
                 st.balloons()
 

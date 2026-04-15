@@ -38,9 +38,8 @@ if st.session_state.auth_creds is None:
     st.stop()
 
 # --- 3. DATA LISTS ---
-# Added a blank/select option at the start to trigger validation correctly
 CAT_OPTIONS = [
-    "Choose Category", "Membership YF kids", "Membership YF teens", "Membership Youth", 
+    "Membership YF kids", "Membership YF teens", "Membership Youth", 
     "Membership Forever Young", "Membership & Donations", "Salaries NVA", 
     "Salaries YF Main", "Salaries projekti", "Salaries nodokļi", 
     "YF Travel Japan", "YF Travel New York", "YF Travel Iceland", 
@@ -49,7 +48,7 @@ CAT_OPTIONS = [
 ]
 
 PROJ_OPTIONS = [
-    "Choose Project", "NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", 
+    "NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", 
     "Youth Podcast Station (300B)", "Youth Work Bus (500B)", 
     "Young Business (KA210)", "Zemlya (101239301)", "SHIFT (KA210)", 
     "Līderu Skola (GEAR UP!)", "Young Folks"
@@ -76,7 +75,7 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 5. PROCESSING ---
-st.title("🏦 Bank to Sheets: Fixed Dual Dropdowns")
+st.title("🏦 Bank to Sheets: Fixed Column F Dropdowns")
 
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
@@ -94,37 +93,43 @@ if uploaded_file:
         df_proc['Income'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['Expense'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Initialize columns with the first "dummy" option
-        df_proc['Category'] = "Choose Category"
-        df_proc['Project'] = "Choose Project"
+        # Start with empty cells (no "Select" text)
+        df_proc['Category'] = ""
+        df_proc['Project'] = ""
         df_proc['Commentary'] = ""
 
         if st.button("🚀 CONVERT & OPEN GOOGLE SHEET"):
             output = io.BytesIO()
             
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # 1. Write the main report
                 df_proc.to_excel(writer, index=False, sheet_name='BankReport')
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # RE-APPLYING VALIDATION STRATEGICALLY
-                # Column F (Index 5)
-                worksheet.data_validation(1, 5, 1000, 5, {
+                # 2. Write dropdown options to a HIDDEN sheet
+                # This bypasses the length limit for Column F
+                options_sheet = workbook.add_worksheet('HiddenData')
+                for i, cat in enumerate(CAT_OPTIONS):
+                    options_sheet.write(i, 0, cat)
+                for i, proj in enumerate(PROJ_OPTIONS):
+                    options_sheet.write(i, 1, proj)
+                options_sheet.hide()
+
+                # 3. Apply Data Validation using the hidden sheet references
+                # Column F (Category) -> HiddenData Sheet Column A
+                worksheet.data_validation('F2:F1000', {
                     'validate': 'list',
-                    'source': CAT_OPTIONS,
-                    'error_message': 'Please select a category from the list',
-                    'ignore_blank': True
+                    'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'
                 })
                 
-                # Column G (Index 6)
-                worksheet.data_validation(1, 6, 1000, 6, {
+                # Column G (Project) -> HiddenData Sheet Column B
+                worksheet.data_validation('G2:G1000', {
                     'validate': 'list',
-                    'source': PROJ_OPTIONS,
-                    'error_message': 'Please select a project from the list',
-                    'ignore_blank': True
+                    'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'
                 })
                 
-                # Formatting and Widths
+                # Formatting
                 header_fmt = workbook.add_format({'bold': True, 'bg_color': '#CFE2F3', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
@@ -136,7 +141,6 @@ if uploaded_file:
 
             output.seek(0)
             fname = f"Bank_Atskaite_{datetime.now().strftime('%H%M')}"
-            
             link = upload_and_convert(output, fname)
             
             if link:

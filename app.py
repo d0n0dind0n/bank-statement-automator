@@ -5,6 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from requests_oauthlib import OAuth2Session
 from datetime import datetime
+import re
 
 # --- 1. CONFIGURATION ---
 REDIRECT_URI = "https://bank-statement-automator-wm4atvbmldyrwdehnbnkzb.streamlit.app/"
@@ -57,20 +58,39 @@ uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
+        # Load CSV with correct delimiter
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
+        
+        # Filter rows containing dates in column 2
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
+        # Helper function to parse Column 3 (the detail bundle)
+        def parse_partner_details(val):
+            if not val: return "", "", ""
+            parts = [p.strip() for p in str(val).split('|')]
+            name = parts[0]
+            iban = ""
+            swift = ""
+            
+            for p in parts[1:]:
+                clean = p.replace(" ", "").upper()
+                # IBAN: Starts with 2 letters and is long
+                if len(clean) >= 15 and clean[0:2].isalpha():
+                    iban = clean
+                # SWIFT: 8 or 11 characters
+                elif len(clean) in [8, 11] and clean[0:4].isalpha():
+                    swift = clean
+            return name, iban, swift
+
+        # Apply parsing
+        parsed_data = df_filtered[3].apply(parse_partner_details)
+        
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
-        
-        split_details = df_filtered[3].str.split('|', expand=True)
-        df_proc['Name Surname'] = split_details[0].str.strip()
-        df_proc['Personal Code'] = split_details[1].str.strip() if 1 in split_details.columns else ""
-
-        # DIRECT MAPPING: Column 6 is Account, Column 8 is SWIFT
-        df_proc['Konta numurs'] = df_filtered[6].astype(str).str.strip()
-        df_proc['Bankas SWIFT'] = df_filtered[8].astype(str).str.strip()
-        
+        df_proc['Name Surname'] = [x[0] for x in parsed_data]
+        df_proc['Personal Code'] = "" # Personal code extraction if needed
+        df_proc['Konta numurs'] = [x[1] for x in parsed_data]
+        df_proc['Bankas SWIFT'] = [x[2] for x in parsed_data]
         df_proc['Purpose'] = df_filtered[4]
         
         amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce')
@@ -93,7 +113,7 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Dropdowns for Columns I and J
+                # Set Dropdowns for Col I (8) and Col J (9)
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 

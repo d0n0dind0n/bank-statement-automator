@@ -37,7 +37,7 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. DROPDOWN LISTS ---
+# --- 3. DATA LISTS ---
 CAT_OPTIONS = [
     "Membership YF kids", "Membership YF teens", "Membership Youth", 
     "Membership Forever Young", "Membership & Donations", "Salaries NVA", 
@@ -54,7 +54,7 @@ PROJ_OPTIONS = [
     "Līderu Skola (GEAR UP!)", "Young Folks"
 ]
 
-# --- 4. UPLOAD FUNCTION ---
+# --- 4. DRIVE UPLOAD ---
 def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])
@@ -64,7 +64,7 @@ def upload_and_convert(file_data, file_name):
     file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
     return file.get('webViewLink')
 
-# --- 5. PROCESSING ---
+# --- 5. DATA PROCESSING ---
 st.title("🏦 Bank to Sheets Automator")
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
@@ -76,23 +76,23 @@ if uploaded_file:
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         
-        # Split Column 3 for Name and Personal Code
+        # Split Name/Code from column 3
         split_details = df_filtered[3].str.split('|', expand=True)
         df_proc['Name Surname'] = split_details[0].str.strip()
         df_proc['Personal Code'] = split_details[1].str.strip() if 1 in split_details.columns else ""
         
-        # MAPPING ACCOUNT AND SWIFT
-        # Based on standard CSV: 6 is Account Number, 8 is SWIFT
-        df_proc['Konta numurs'] = df_filtered[6].astype(str).str.strip()
-        df_proc['Bankas SWIFT'] = df_filtered[8].astype(str).str.strip()
+        # Mapping IBAN (Col 6) and SWIFT (Col 8)
+        df_proc['Konta numurs'] = df_filtered[6].astype(str).str.strip().str.upper()
+        df_proc['Bankas SWIFT'] = df_filtered[8].astype(str).str.strip().str.upper()
         
         df_proc['Purpose'] = df_filtered[4].fillna("")
         
+        # Handle Monies
         amounts = pd.to_numeric(df_filtered[5].str.replace(',', '.'), errors='coerce')
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # Target Dropdown Columns
+        # Empty Dropdown target columns
         df_proc['Category'] = ""      # Col I
         df_proc['Project Name'] = ""  # Col J
         df_proc['Commentary'] = ""    # Col K
@@ -104,13 +104,13 @@ if uploaded_file:
                 workbook  = writer.book
                 worksheet = writer.sheets['BankReport']
                 
-                # Hidden Data Sheet for validation
+                # Hidden validation sheet
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Set Dropdowns for Col I (Index 8) and Col J (Index 9)
+                # Column F (index 5) is Purpose, so Dropdowns start at I (index 8)
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
@@ -120,12 +120,12 @@ if uploaded_file:
                     worksheet.write(0, col_num, value, header_fmt)
                 
                 worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:E', 25)
-                worksheet.set_column('F:F', 45)
+                worksheet.set_column('C:E', 25) # IBAN and SWIFT columns
+                worksheet.set_column('F:F', 50) # Purpose
                 worksheet.set_column('G:K', 20)
 
             output.seek(0)
-            fname = f"Bank_Report_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            fname = f"Bank_Export_{datetime.now().strftime('%Y%m%d_%H%M')}"
             link = upload_and_convert(output, fname)
             
             if link:

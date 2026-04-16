@@ -59,7 +59,7 @@ PROJ_OPTIONS = [
     "English language", "Workshops", "Office Rent", "Animators"
 ]
 
-# Intelligence derived from your Book1.xlsx analysis
+# Intelligence derived from your Book1.xlsx analysis + new keywords
 CAT_FILTER = {
     "Dalības": "Membership",
     "biedru nauda": "Membership",
@@ -68,6 +68,8 @@ CAT_FILTER = {
     "stipendija": "Salaries",
     "alga": "Salaries",
     "nodokli": "Salaries",
+    "Autoratlīdzības": "Salaries",  # <-- Added mapping for Salaries
+    "Autoratlidzibas": "Salaries",
     "BOLT": "YF Logistics",
     "WOLT": "YF Logistics",
     "Citybee": "YF Logistics",
@@ -113,7 +115,7 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 5. DATA PROCESSING ---
-st.title("🏦 Bank Automator: High-Precision Version")
+st.title("🏦 Bank Automator: Salaries Update")
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:

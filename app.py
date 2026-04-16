@@ -38,33 +38,68 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. DATA LISTS & AUTO-FILTERS ---
-CAT_OPTIONS = ["Membership YF kids", "Membership YF teens", "Membership Youth", "Membership Forever Young", "Membership & Donations", "Salaries NVA", "Salaries YF Main", "Salaries projekti", "Salaries nodokļi", "YF Travel Japan", "YF Travel New York", "YF Travel Iceland", "Logistics & Travel", "Services Office Rent", "Operational Expenses", "Office supplies", "Rent & Admin"]
-PROJ_OPTIONS = ["NVA / ESF", "DiscoverEU (200B)", "Youth Identity Hub (400B)", "Youth Podcast Station (300B)", "Youth Work Bus (500B)", "Young Business (KA210)", "Zemlya (101239301)", "SHIFT (KA210)", "Līderu Skola (GEAR UP!)", "Young Folks"]
+# --- 3. UPDATED LISTS & INTELLIGENT FILTERS ---
+CAT_OPTIONS = [
+    "Membership", "YF Logistics", "YF Travel", "Erasmus+ reimbursement",
+    "Services", "Salaries", "Donations", "Operational Expenses",
+    "Office supplies", "Rent & Admin"
+]
 
-# Auto-selection Keywords
+PROJ_OPTIONS = [
+    "NVA/ESF", "Erasmus+ KA210 project \"Young Business\"", 
+    "Erasmus+ project Project 101239301 \"Zemlya\"", "Erasmus+ KA210 \"SHIFT\"",
+    "projekts Lapas GEAR UP! \"Līderu Skola\"", 
+    "Valsts Kase projekts DiscoverEU \"My Europ too\" (2008)",
+    "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
+    "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
+    "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
+    "Erasmus+ General", "projekti", "nodokļi", "YF Main", "YF kids", 
+    "YF teens", "Youth", "Forever Young", "New York", "Iceland", 
+    "Japan", "Say it Ring", "Sense (design)", "Latvian language", 
+    "English language", "Workshops", "Office Rent", "Animators"
+]
+
+# Intelligence derived from your Book1.xlsx analysis
 CAT_FILTER = {
-    "Dalības maksa": "Membership & Donations",
-    "Ziedojums": "Membership & Donations",
-    "Alga": "Salaries YF Main",
-    "Nodokļi": "Salaries nodokļi",
-    "Rent": "Services Office Rent",
-    "Noma": "Services Office Rent",
-    "Japan": "YF Travel Japan",
-    "Iceland": "YF Travel Iceland",
-    "New York": "YF Travel New York",
-    "Office": "Office supplies"
+    "Dalības": "Membership",
+    "biedru nauda": "Membership",
+    "ziedojums": "Donations",
+    "ziedojumu": "Donations",
+    "stipendija": "Salaries",
+    "alga": "Salaries",
+    "nodokli": "Salaries",
+    "BOLT": "YF Logistics",
+    "WOLT": "YF Logistics",
+    "Citybee": "YF Logistics",
+    "Travel": "YF Travel",
+    "Japan": "YF Travel",
+    "Iceland": "YF Travel",
+    "Lekcija": "Services",
+    "Latviesu": "Services",
+    "English": "Services",
+    "Rent": "Rent & Admin",
+    "Noma": "Rent & Admin"
 }
 
 PROJ_FILTER = {
-    "200B": "DiscoverEU (200B)",
-    "300B": "Youth Podcast Station (300B)",
-    "400B": "Youth Identity Hub (400B)",
-    "500B": "Youth Work Bus (500B)",
-    "Zemlya": "Zemlya (101239301)",
-    "SHIFT": "SHIFT (KA210)",
-    "NVA": "NVA / ESF",
-    "ESF": "NVA / ESF"
+    "200B": "Valsts Kase projekts DiscoverEU \"My Europ too\" (2008)",
+    "300B": "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
+    "400B": "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
+    "500B": "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
+    "Zemlya": "Erasmus+ project Project 101239301 \"Zemlya\"",
+    "SHIFT": "Erasmus+ KA210 \"SHIFT\"",
+    "Young Business": "Erasmus+ KA210 project \"Young Business\"",
+    "ESF": "NVA/ESF",
+    "NVA": "NVA/ESF",
+    "Lid": "projekts Lapas GEAR UP! \"Līderu Skola\"",
+    "Gredzen": "Say it Ring",
+    "Kids": "YF kids",
+    "Teens": "YF teens",
+    "Forever": "Forever Young",
+    "latviesu": "Latvian language",
+    "english": "English language",
+    "Bolt": "projekti",
+    "Citybee": "projekti"
 }
 
 # --- 4. DRIVE UPLOAD ---
@@ -78,7 +113,7 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 5. DATA PROCESSING ---
-st.title("🏦 Bank Automator: Auto-Selection Active")
+st.title("🏦 Bank Automator: High-Precision Version")
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
@@ -112,21 +147,15 @@ if uploaded_file:
         df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # --- AUTO-SELECTION LOGIC ---
-        def get_auto_cat(row):
+        def auto_map(row, mapping_dict, default=""):
             text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
-            for kw, cat in CAT_FILTER.items():
-                if kw.lower() in text: return cat
-            return ""
+            for keyword, value in mapping_dict.items():
+                if keyword.lower() in text:
+                    return value
+            return default
 
-        def get_auto_proj(row):
-            text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
-            for kw, proj in PROJ_FILTER.items():
-                if kw.lower() in text: return proj
-            return "Young Folks" # Default project
-
-        df_proc['Category'] = df_proc.apply(get_auto_cat, axis=1)
-        df_proc['Project Name'] = df_proc.apply(get_auto_proj, axis=1)
+        df_proc['Category'] = df_proc.apply(lambda r: auto_map(r, CAT_FILTER), axis=1)
+        df_proc['Project Name'] = df_proc.apply(lambda r: auto_map(r, PROJ_FILTER, "YF Main"), axis=1)
         df_proc['Commentary'] = ""
 
         if st.button("🚀 CREATE GOOGLE SHEET"):
@@ -141,6 +170,7 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
+                # Column I (8) & J (9) validation
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
@@ -151,10 +181,10 @@ if uploaded_file:
                 worksheet.set_column('A:B', 15)
                 worksheet.set_column('C:E', 28) 
                 worksheet.set_column('F:F', 50) 
-                worksheet.set_column('G:K', 20)
+                worksheet.set_column('G:K', 25)
 
             output.seek(0)
-            fname = f"Bank_Automated_{datetime.now().strftime('%H%M')}"
+            fname = f"Bank_Summary_{datetime.now().strftime('%H%M')}"
             link = upload_and_convert(output, fname)
             
             if link:

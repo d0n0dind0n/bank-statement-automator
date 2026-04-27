@@ -61,9 +61,12 @@ PROJ_OPTIONS = [
 
 CAT_FILTER = {
     "dalības": "Membership", "biedru nauda": "Membership", "dalībmaksa": "Membership",
-    "abonements": "Membership", "ziedojums": "Donations", "ziedojumu": "Donations",
+    "abonements": "Membership", "biedriba nauda": "Membership", "yf2024": "Membership", 
+    "fy": "Membership", "dalibmaksa par klubu": "Membership", "biedra nauda": "Membership",
+    "ziedojums": "Donations", "ziedojumu": "Donations",
     "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries",
     "autoratlīdzības": "Salaries", "autoratlidzibas": "Salaries", "līgums": "Salaries",
+    "ligums nva": "Salaries",
     "bolt": "YF Logistics", "wolt": "YF Logistics", "citybee": "YF Logistics",
     "pirkums": "YF Logistics", "travel": "YF Travel", "japan": "YF Travel",
     "iceland": "YF Travel", "lekcija": "Services", "latviesu": "Services",
@@ -86,7 +89,8 @@ PROJ_FILTER = {
     "līderu skola": "projekts Lapas GEAR UP! \"Līderu Skola\"",
     "nodokļi": "nodokļi", "kids": "YF kids", "new york": "New York",
     "iceland": "Iceland", "japan": "Japan", "gredzen": "Say it Ring",
-    "ring": "Say it Ring", "sense": "Sense (design)", "latviesu": "Latvian language",
+    "ring": "Say it Ring", "fy": "Forever Young", "forever": "Forever Young",
+    "sense": "Sense (design)", "latviesu": "Latvian language",
     "english": "English language", "meistarklase": "Workshops",
     "workshops": "Workshops", "noma": "Office Rent", "animators": "Animators",
     "bolt": "projekti", "wolt": "projekti"
@@ -111,7 +115,6 @@ if uploaded_file:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        # Filename logic
         try:
             first_date_str = df_filtered.iloc[0, 2] 
             dt_obj = datetime.strptime(first_date_str, "%d.%m.%Y")
@@ -140,38 +143,45 @@ if uploaded_file:
         df_proc['Bankas SWIFT'] = [x[3] for x in parsed_data]
         df_proc['Purpose'] = df_filtered[4]
         
-        # Numeric parsing for Amounts
         amounts_raw = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
         df_proc['K (KREDITS)'] = amounts_raw.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts_raw.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # --- LOGIC FOR CATEGORY & PROJECT ---
-        def get_category(row):
-            text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
-            for kw, cat in CAT_FILTER.items():
-                if kw.lower() in text: return cat
-            return ""
-
+        # --- ENHANCED LOGIC ---
         def get_project_name(row):
-            category = row['Category']
-            # Get max amount (either credit or debit) for the logic
-            amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
             purpose_lower = str(row['Purpose']).lower()
+            amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
             
-            if category == "Membership":
+            # Check for Membership amount logic first
+            text_for_cat = (purpose_lower + " " + str(row['Name Surname']).lower())
+            is_membership = any(kw in text_for_cat for kw in ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "fy", "biedra nauda"])
+            
+            if is_membership:
                 if amt in [20, 30]:
                     return "Forever Young"
                 elif amt in [15, 25]:
                     return "YF teens"
             
+            # General keyword search for projects
             for key, proj in PROJ_FILTER.items():
                 if key in purpose_lower:
                     return proj
                     
             return "YF Main"
 
-        df_proc['Category'] = df_proc.apply(get_category, axis=1)
+        def get_category(row, project_name):
+            # Requirement: If 'Say it Ring' is used, put it in 'Services'
+            if project_name == "Say it Ring":
+                return "Services"
+                
+            text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
+            for kw, cat in CAT_FILTER.items():
+                if kw.lower() in text: return cat
+            return ""
+
+        # Processing columns in order of dependency
         df_proc['Project Name'] = df_proc.apply(get_project_name, axis=1)
+        df_proc['Category'] = df_proc.apply(lambda r: get_category(r, r['Project Name']), axis=1)
         df_proc['Commentary'] = ""
 
         if st.button(f"🚀 CREATE {sheet_name.upper()} SHEET"):
@@ -185,7 +195,6 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Excel Data Validations (Dropdowns)
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 

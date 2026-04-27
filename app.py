@@ -38,8 +38,7 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. UPDATED LISTS & INTELLIGENT FILTERS ---
-# Updated options based on file content
+# --- 3. UPDATED OPTIONS & FILTERS ---
 CAT_OPTIONS = [
     "Membership", "YF Logistics", "YF Travel", "Erasmus+ reimbursement",
     "Services", "Salaries", "Donations", "Operational Expenses",
@@ -52,58 +51,28 @@ PROJ_OPTIONS = [
     "projekti", "Young Folks"
 ]
 
-# Intelligence derived from SAAAASHA OTMET POZALUJSTA analysis
 CAT_FILTER = {
-    "dalības": "Membership",
-    "biedru nauda": "Membership",
-    "dalībmaksa": "Membership",
-    "abonements": "Membership",
-    "ziedojums": "Donations",
-    "ziedojumu": "Donations",
-    "stipendija": "Salaries",
-    "alga": "Salaries",
-    "nodokli": "Salaries",
-    "autoratlīdzības": "Salaries",
-    "autoratlidzibas": "Salaries",
-    "līgums": "Salaries",
-    "pirkums": "YF Logistics",
-    "bolt": "YF Logistics",
-    "wolt": "YF Logistics",
-    "citybee": "YF Logistics",
-    "travel": "YF Travel",
-    "japan": "YF Travel",
-    "iceland": "YF Travel",
-    "lekcija": "Services",
-    "latviesu": "Services",
-    "english": "Services",
-    "valoda": "Services",
-    "rent": "Rent & Admin",
-    "noma": "Rent & Admin",
-    "komisija": "Operational Expenses",
-    "apkalpošanas": "Operational Expenses",
-    "tele2": "Office supplies",
-    "kancelejas": "Office supplies",
-    "reimbursement": "Erasmus+ reimbursement",
+    "dalības": "Membership", "biedru nauda": "Membership", "dalībmaksa": "Membership",
+    "abonements": "Membership", "ziedojums": "Donations", "ziedojumu": "Donations",
+    "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries",
+    "autoratlīdzības": "Salaries", "autoratlidzibas": "Salaries", "līgums": "Salaries",
+    "pirkums": "YF Logistics", "bolt": "YF Logistics", "wolt": "YF Logistics",
+    "citybee": "YF Logistics", "travel": "YF Travel", "japan": "YF Travel",
+    "iceland": "YF Travel", "lekcija": "Services", "latviesu": "Services",
+    "english": "Services", "valoda": "Services", "rent": "Rent & Admin",
+    "noma": "Rent & Admin", "komisija": "Operational Expenses",
+    "apkalpošanas": "Operational Expenses", "tele2": "Office supplies",
+    "kancelejas": "Office supplies", "reimbursement": "Erasmus+ reimbursement",
     "erasmus": "Erasmus+ reimbursement"
 }
 
 PROJ_FILTER = {
-    "esf": "NVA / ESF",
-    "nva": "NVA / ESF",
-    "ligums": "NVA / ESF", # Linked to NVA in your data
-    "erasmus": "Erasmus+ General",
-    "gredzen": "Say it Ring",
-    "ring": "Say it Ring",
-    "kids": "YF kids",
-    "teens": "YF teens",
-    "forever": "Forever Young",
-    "latviesu": "Latvian language",
-    "valoda": "Latvian language",
-    "meistarklase": "Workshops",
-    "lekcija": "Workshops",
-    "bolt": "projekti",
-    "pirkums": "projekti",
-    "citybee": "projekti"
+    "esf": "NVA / ESF", "nva": "NVA / ESF", "ligums": "NVA / ESF",
+    "erasmus": "Erasmus+ General", "gredzen": "Say it Ring", "ring": "Say it Ring",
+    "kids": "YF kids", "teens": "YF teens", "forever": "Forever Young",
+    "latviesu": "Latvian language", "valoda": "Latvian language",
+    "meistarklase": "Workshops", "lekcija": "Workshops", "bolt": "projekti",
+    "pirkums": "projekti", "citybee": "projekti"
 }
 
 # --- 4. DRIVE UPLOAD ---
@@ -117,13 +86,21 @@ def upload_and_convert(file_data, file_name):
     return file.get('webViewLink')
 
 # --- 5. DATA PROCESSING ---
-st.title("🏦 Bank Automator: Salaries Update")
+st.title("🏦 Bank Automator")
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
+
+        # Filename logic based on first transaction
+        try:
+            first_date_str = df_filtered.iloc[0, 2] 
+            dt_obj = datetime.strptime(first_date_str, "%d.%m.%Y")
+            sheet_name = dt_obj.strftime("%B_%Y")
+        except:
+            sheet_name = f"Bank_Export_{datetime.now().strftime('%Y-%m-%d')}"
 
         def parse_partner_details(val):
             if not val: return "", "", "", ""
@@ -138,7 +115,6 @@ if uploaded_file:
             return name, p_code, iban, swift
 
         parsed_data = df_filtered[3].apply(parse_partner_details)
-        
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         df_proc['Name Surname'] = [x[0] for x in parsed_data]
@@ -153,28 +129,25 @@ if uploaded_file:
         
         def auto_map(row, mapping_dict, default=""):
             text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
-            for keyword, value in mapping_dict.items():
-                if keyword.lower() in text:
-                    return value
+            for kw, val in mapping_dict.items():
+                if kw.lower() in text: return val
             return default
 
         df_proc['Category'] = df_proc.apply(lambda r: auto_map(r, CAT_FILTER), axis=1)
         df_proc['Project Name'] = df_proc.apply(lambda r: auto_map(r, PROJ_FILTER, "YF Main"), axis=1)
         df_proc['Commentary'] = ""
 
-        if st.button("🚀 CREATE GOOGLE SHEET"):
+        if st.button(f"🚀 CREATE {sheet_name.upper()} SHEET"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_proc.to_excel(writer, index=False, sheet_name='BankReport')
-                workbook  = writer.book
-                worksheet = writer.sheets['BankReport']
+                workbook, worksheet = writer.book, writer.sheets['BankReport']
                 
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Column I (8) & J (9) validation
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 
@@ -188,13 +161,12 @@ if uploaded_file:
                 worksheet.set_column('G:K', 25)
 
             output.seek(0)
-            fname = f"Bank_Summary_{datetime.now().strftime('%H%M')}"
-            link = upload_and_convert(output, fname)
+            link = upload_and_convert(output, sheet_name)
             
             if link:
                 st.markdown(f'''<a href="{link}" target="_blank" style="text-decoration:none;">
                     <div style="background-color:#0F9D58;color:white;padding:25px;border-radius:15px;text-align:center;font-size:22px;font-weight:bold;">
-                    📊 OPEN GOOGLE SHEET
+                    📊 OPEN {sheet_name.replace("_", " ")}
                     </div></a>''', unsafe_allow_html=True)
 
     except Exception as e:

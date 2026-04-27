@@ -39,69 +39,71 @@ if st.session_state.auth_creds is None:
     st.stop()
 
 # --- 3. UPDATED LISTS & INTELLIGENT FILTERS ---
+# Updated options based on file content
 CAT_OPTIONS = [
     "Membership", "YF Logistics", "YF Travel", "Erasmus+ reimbursement",
     "Services", "Salaries", "Donations", "Operational Expenses",
-    "Office supplies", "Rent & Admin"
+    "Office supplies", "Rent & Admin", "Single payment"
 ]
 
 PROJ_OPTIONS = [
-    "NVA/ESF", "Erasmus+ KA210 project \"Young Business\"", 
-    "Erasmus+ project Project 101239301 \"Zemlya\"", "Erasmus+ KA210 \"SHIFT\"",
-    "projekts Lapas GEAR UP! \"Līderu Skola\"", 
-    "Valsts Kase projekts DiscoverEU \"My Europ too\" (2008)",
-    "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
-    "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
-    "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
-    "Erasmus+ General", "projekti", "nodokļi", "YF Main", "YF kids", 
-    "YF teens", "Youth", "Forever Young", "New York", "Iceland", 
-    "Japan", "Say it Ring", "Sense (design)", "Latvian language", 
-    "English language", "Workshops", "Office Rent", "Animators"
+    "NVA / ESF", "Erasmus+ General", "YF Main", "YF kids", "YF teens", 
+    "Forever Young", "Say it Ring", "Latvian language", "Workshops", 
+    "projekti", "Young Folks"
 ]
 
-# Intelligence derived from your Book1.xlsx analysis + new keywords
+# Intelligence derived from SAAAASHA OTMET POZALUJSTA analysis
 CAT_FILTER = {
-    "Dalības": "Membership",
+    "dalības": "Membership",
     "biedru nauda": "Membership",
+    "dalībmaksa": "Membership",
+    "abonements": "Membership",
     "ziedojums": "Donations",
     "ziedojumu": "Donations",
     "stipendija": "Salaries",
     "alga": "Salaries",
     "nodokli": "Salaries",
-    "Autoratlīdzības": "Salaries",  # <-- Added mapping for Salaries
-    "Autoratlidzibas": "Salaries",
-    "BOLT": "YF Logistics",
-    "WOLT": "YF Logistics",
-    "Citybee": "YF Logistics",
-    "Travel": "YF Travel",
-    "Japan": "YF Travel",
-    "Iceland": "YF Travel",
-    "Lekcija": "Services",
-    "Latviesu": "Services",
-    "English": "Services",
-    "Rent": "Rent & Admin",
-    "Noma": "Rent & Admin"
+    "autoratlīdzības": "Salaries",
+    "autoratlidzibas": "Salaries",
+    "līgums": "Salaries",
+    "pirkums": "YF Logistics",
+    "bolt": "YF Logistics",
+    "wolt": "YF Logistics",
+    "citybee": "YF Logistics",
+    "travel": "YF Travel",
+    "japan": "YF Travel",
+    "iceland": "YF Travel",
+    "lekcija": "Services",
+    "latviesu": "Services",
+    "english": "Services",
+    "valoda": "Services",
+    "rent": "Rent & Admin",
+    "noma": "Rent & Admin",
+    "komisija": "Operational Expenses",
+    "apkalpošanas": "Operational Expenses",
+    "tele2": "Office supplies",
+    "kancelejas": "Office supplies",
+    "reimbursement": "Erasmus+ reimbursement",
+    "erasmus": "Erasmus+ reimbursement"
 }
 
 PROJ_FILTER = {
-    "200B": "Valsts Kase projekts DiscoverEU \"My Europ too\" (2008)",
-    "300B": "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
-    "400B": "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
-    "500B": "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
-    "Zemlya": "Erasmus+ project Project 101239301 \"Zemlya\"",
-    "SHIFT": "Erasmus+ KA210 \"SHIFT\"",
-    "Young Business": "Erasmus+ KA210 project \"Young Business\"",
-    "ESF": "NVA/ESF",
-    "NVA": "NVA/ESF",
-    "Lid": "projekts Lapas GEAR UP! \"Līderu Skola\"",
-    "Gredzen": "Say it Ring",
-    "Kids": "YF kids",
-    "Teens": "YF teens",
-    "Forever": "Forever Young",
+    "esf": "NVA / ESF",
+    "nva": "NVA / ESF",
+    "ligums": "NVA / ESF", # Linked to NVA in your data
+    "erasmus": "Erasmus+ General",
+    "gredzen": "Say it Ring",
+    "ring": "Say it Ring",
+    "kids": "YF kids",
+    "teens": "YF teens",
+    "forever": "Forever Young",
     "latviesu": "Latvian language",
-    "english": "English language",
-    "Bolt": "projekti",
-    "Citybee": "projekti"
+    "valoda": "Latvian language",
+    "meistarklase": "Workshops",
+    "lekcija": "Workshops",
+    "bolt": "projekti",
+    "pirkums": "projekti",
+    "citybee": "projekti"
 }
 
 # --- 4. DRIVE UPLOAD ---

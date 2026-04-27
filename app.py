@@ -147,43 +147,43 @@ if uploaded_file:
         df_proc['K (KREDITS)'] = amounts_raw.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts_raw.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # --- ORDERED LOGIC: PROJECT THEN CATEGORY ---
-        def get_project_name(row):
+        # --- CALCULATION LOGIC (INTERNAL) ---
+        def process_row(row):
             purpose_lower = str(row['Purpose']).lower()
             amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
-            
-            # Check for Membership amount logic first
-            text_for_membership_check = (purpose_lower + " " + str(row['Name Surname']).lower())
+            name_lower = str(row['Name Surname']).lower()
+            full_text = f"{purpose_lower} {name_lower}"
+
+            # Determine Project first
             membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "fy", "biedra nauda", "dalibmaksa par klubu"]
-            is_membership_signal = any(kw in text_for_membership_check for kw in membership_keywords)
+            is_membership_signal = any(kw in full_text for kw in membership_keywords)
             
+            project = "YF Main"
             if is_membership_signal:
-                if amt in [20, 30]:
-                    return "Forever Young"
-                elif amt in [15, 25]:
-                    return "YF teens"
+                if amt in [20, 30]: project = "Forever Young"
+                elif amt in [15, 25]: project = "YF teens"
+            else:
+                for key, proj in PROJ_FILTER.items():
+                    if key in purpose_lower:
+                        project = proj
+                        break
             
-            # General keyword search for projects
-            for key, proj in PROJ_FILTER.items():
-                if key in purpose_lower:
-                    return proj
-                    
-            return "YF Main"
+            # Determine Category
+            category = ""
+            if project == "Say it Ring":
+                category = "Services"
+            else:
+                for kw, cat in CAT_FILTER.items():
+                    if kw.lower() in full_text:
+                        category = cat
+                        break
+            
+            return category, project
 
-        def get_category(row, project_name):
-            # 1. Override: If 'Say it Ring' project, category is always 'Services'
-            if project_name == "Say it Ring":
-                return "Services"
-                
-            # 2. Default Keyword Search
-            text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
-            for kw, cat in CAT_FILTER.items():
-                if kw.lower() in text: return cat
-            return ""
-
-        # Processing columns in order of dependency
-        df_proc['Project Name'] = df_proc.apply(get_project_name, axis=1)
-        df_proc['Category'] = df_proc.apply(lambda r: get_category(r, r['Project Name']), axis=1)
+        # Apply logic and create columns in original order
+        results = df_proc.apply(process_row, axis=1)
+        df_proc['Category'] = [r[0] for r in results]
+        df_proc['Project Name'] = [r[1] for r in results]
         df_proc['Commentary'] = ""
 
         if st.button(f"🚀 CREATE {sheet_name.upper()} SHEET"):
@@ -197,7 +197,7 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Fix for "Input must fall within range" - Use Dynamic Rows
+                # Dynamic Range Fix
                 last_row = len(df_proc) + 1
                 worksheet.data_validation(f'I2:I{last_row}', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation(f'J2:J{last_row}', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})

@@ -34,8 +34,8 @@ if "code" in st.query_params:
 if st.session_state.auth_creds is None:
     google = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI, scope=SCOPES)
     auth_url, _ = google.authorization_url(AUTH_URL, access_type="offline", prompt="select_account")
-    st.title("🏦 Bankas izraksts uz Google Sheets")
-    st.link_button("🔑 Pieslēgties ar Google", auth_url)
+    st.title("🏦 Bank to Sheets")
+    st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
 # --- 3. ATJAUNINĀTIE FILTRI ---
@@ -60,28 +60,22 @@ PROJ_OPTIONS = [
 ]
 
 CAT_FILTER = {
-    # Membership
     "dalības": "Membership", "biedru nauda": "Membership", "dalībmaksa": "Membership",
     "abonements": "Membership", "biedriba nauda": "Membership", "yf2024": "Membership", 
     "yf2026": "Membership", "fy": "Membership", "dalibmaksa par klubu": "Membership", "biedra nauda": "Membership",
-    # Donations
     "ziedojums": "Donations", "ziedojumu": "Donations",
-    # Salaries
     "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries",
     "autoratlīdzības": "Salaries", "autoratlidzibas": "Salaries", "līgums": "Salaries",
     "ligums nva": "Salaries",
-    # Services & Education
-    "lekcija": "Services", "latviesu": "Services", "english": "Services", "valoda": "Services", 
-    "sarunvalodas": "Services", "akademicheskiy": "Services", "gleznieciba": "Services", 
-    "akademiska": "Services", "urok": "Services", "latv": "Services", "val": "Services", 
-    "dalibmaksa": "Services", "klub": "Services", "meistarklase": "Services", "lv nodarbības": "Services",
-    # Logistics & Operational
     "bolt": "YF Logistics", "wolt": "YF Logistics", "citybee": "YF Logistics",
     "pirkums": "YF Logistics", "travel": "YF Travel", "japan": "YF Travel",
-    "iceland": "YF Travel", "rent": "Rent & Admin", "komisija": "Operational Expenses",
+    "iceland": "YF Travel", "lekcija": "Services", "latviesu": "Services",
+    "english": "Services", "valoda": "Services", "sarunvalodas": "Services",
+    "akademicheskiy risunok": "Services", "akademicheskiy": "Services", "gleznieciba": "Services", 
+    "akademiska": "Services", "urok": "Services", "lv nodarbības": "Services",
+    "rent": "Rent & Admin", "komisija": "Operational Expenses",
     "apkalpošanas": "Operational Expenses", "noma": "Operational Expenses", 
     "telpu noma": "Operational Expenses", "kartes mēneša maksa": "Operational Expenses",
-    # Misc
     "tele2": "Office supplies", "reimbursement": "Erasmus+", "erasmus": "Erasmus+"
 }
 
@@ -99,15 +93,61 @@ PROJ_FILTER = {
     "nodokļi": "nodokļi", "kids": "YF kids", "bērnu": "YF kids", "new york": "New York",
     "iceland": "Iceland", "japan": "Japan", "gredzen": "Say it Ring",
     "ring": "Say it Ring", "fy": "Forever Young", "forever": "Forever Young",
-    "sense": "Sense (design)", "latviesu": "Latvian language", "latv": "Latvian language",
-    "val": "Latvian language", "lv nodarbības": "Latvian language",
+    "sense": "Sense (design)", "latviesu": "Latvian language", "lv nodarbības": "Latvian language",
+    "akademicheskiy risunok": "Workshops", "akademicheskiy": "Workshops",
     "english": "English language", "meistarklase": "Workshops",
     "workshops": "Workshops", "sarunvalodas": "Workshops", 
     "noma": "Office Rent", "animators": "Animators",
     "bolt": "projekti", "wolt": "projekti"
 }
 
-# --- 4. DRIVE AUGŠUPIELĀDE ---
+# --- 4. DATA LOGIC ---
+def process_row(row):
+    purpose_lower = str(row['Purpose']).lower()
+    amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
+    name_lower = str(row['Name Surname']).lower()
+    full_text = f"{purpose_lower} {name_lower}"
+
+    project = "YF Main"
+    
+    # Precise Matching Logic
+    if re.search(r'\bnva\b', purpose_lower):
+        project = "NVA / ESF"
+    elif "lv nodarbības" in full_text:
+        project = "Latvian language"
+    # Whole-word check for 'latv' and 'val'
+    elif re.search(r'\b(latv|val)\b', full_text):
+        project = "Latvian language"
+    else:
+        membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "yf2026", "fy", "biedra nauda", "dalibmaksa par klubu"]
+        is_membership_signal = any(kw in full_text for kw in membership_keywords)
+        
+        if is_membership_signal:
+            if amt in [20, 30]: project = "Forever Young"
+            elif amt in [15, 25]: project = "YF teens"
+        else:
+            for key, proj in PROJ_FILTER.items():
+                if key in full_text:
+                    project = proj
+                    break
+    
+    # Category Assignment
+    category = ""
+    if project == "Say it Ring":
+        category = "Services"
+    elif "noma" in full_text:
+        category = "Operational Expenses"
+    elif "lv nodarbības" in full_text or re.search(r'\b(latv|val)\b', full_text):
+        category = "Services"
+    else:
+        for kw, cat in CAT_FILTER.items():
+            if kw.lower() in full_text:
+                category = cat
+                break
+    
+    return category, project
+
+# --- 5. DRIVE & APP FLOW (Standard Rest of Code) ---
 def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])
@@ -117,9 +157,8 @@ def upload_and_convert(file_data, file_name):
     file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
     return file.get('webViewLink')
 
-# --- 5. DATU APSTRĀDE ---
-st.title("🏦 Bankas Automators")
-uploaded_file = st.file_uploader("Augšupielādēt bankas CSV", type="csv")
+st.title("🏦 Bank Automator")
+uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
@@ -127,8 +166,7 @@ if uploaded_file:
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
         try:
-            first_date_str = df_filtered.iloc[0, 2] 
-            dt_obj = datetime.strptime(first_date_str, "%d.%m.%Y")
+            dt_obj = datetime.strptime(df_filtered.iloc[0, 2], "%d.%m.%Y")
             sheet_name = dt_obj.strftime("%B_%Y")
         except:
             sheet_name = f"Bank_Export_{datetime.now().strftime('%Y-%m-%d')}"
@@ -158,54 +196,16 @@ if uploaded_file:
         df_proc['K (KREDITS)'] = amounts_raw.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts_raw.where(df_filtered[7] == 'D').fillna(0.0)
         
-        def process_row(row):
-            purpose_lower = str(row['Purpose']).lower()
-            amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
-            name_lower = str(row['Name Surname']).lower()
-            full_text = f"{purpose_lower} {name_lower}"
-
-            # 1. Projekta noteikšana
-            project = "YF Main"
-            if re.search(r'\bnva\b', purpose_lower):
-                project = "NVA / ESF"
-            else:
-                membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "yf2026", "fy", "biedra nauda", "dalibmaksa par klubu"]
-                is_membership_signal = any(kw in full_text for kw in membership_keywords)
-                
-                if is_membership_signal:
-                    if amt in [20, 30]: project = "Forever Young"
-                    elif amt in [15, 25]: project = "YF teens"
-                else:
-                    for key, proj in PROJ_FILTER.items():
-                        if key in full_text:
-                            project = proj
-                            break
-            
-            # 2. Kategorijas noteikšana
-            category = ""
-            if project == "Say it Ring":
-                category = "Services"
-            elif "noma" in full_text:
-                category = "Operational Expenses"
-            else:
-                for kw, cat in CAT_FILTER.items():
-                    if kw.lower() in full_text:
-                        category = cat
-                        break
-            
-            return category, project
-
         results = df_proc.apply(process_row, axis=1)
         df_proc['Category'] = [r[0] for r in results]
         df_proc['Project Name'] = [r[1] for r in results]
         df_proc['Commentary'] = ""
 
-        if st.button(f"🚀 IZVEIDOT {sheet_name.upper()} TABULU"):
+        if st.button(f"🚀 CREATE {sheet_name.upper()} SHEET"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_proc.to_excel(writer, index=False, sheet_name='BankReport')
                 workbook, worksheet = writer.book, writer.sheets['BankReport']
-                
                 options_sheet = workbook.add_worksheet('HiddenData')
                 for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
@@ -219,19 +219,12 @@ if uploaded_file:
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
-                worksheet.set_column('A:B', 15)
-                worksheet.set_column('C:E', 28) 
-                worksheet.set_column('F:F', 50) 
-                worksheet.set_column('G:K', 25)
+                worksheet.set_column('A:B', 15); worksheet.set_column('C:E', 28); worksheet.set_column('F:F', 50); worksheet.set_column('G:K', 25)
 
             output.seek(0)
             link = upload_and_convert(output, sheet_name)
-            
             if link:
-                st.markdown(f'''<a href="{link}" target="_blank" style="text-decoration:none;">
-                    <div style="background-color:#0F9D58;color:white;padding:25px;border-radius:15px;text-align:center;font-size:22px;font-weight:bold;">
-                    📊 ATVĒRT {sheet_name.replace("_", " ")}
-                    </div></a>''', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#0F9D58;color:white;padding:25px;border-radius:15px;text-align:center;font-size:22px;font-weight:bold;">📊 OPEN {sheet_name}</div></a>', unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Kļūda: {e}")
+        st.error(f"Error: {e}")

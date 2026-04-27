@@ -61,7 +61,7 @@ PROJ_OPTIONS = [
 
 CAT_FILTER = {
     "dalības": "Membership", "biedru nauda": "Membership", "dalībmaksa": "Membership",
-    "abonements": "Membership", "biedriba nauda": "Membership", "yf202": "Membership", 
+    "abonements": "Membership", "biedriba nauda": "Membership", "yf2024": "Membership", 
     "fy": "Membership", "dalibmaksa par klubu": "Membership", "biedra nauda": "Membership",
     "ziedojums": "Donations", "ziedojumu": "Donations",
     "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries",
@@ -70,14 +70,16 @@ CAT_FILTER = {
     "bolt": "YF Logistics", "wolt": "YF Logistics", "citybee": "YF Logistics",
     "pirkums": "YF Logistics", "travel": "YF Travel", "japan": "YF Travel",
     "iceland": "YF Travel", "lekcija": "Services", "latviesu": "Services",
-    "english": "Services", "valoda": "Services", "rent": "Rent & Admin",
-    "noma": "Rent & Admin", "komisija": "Operational Expenses",
-    "apkalpošanas": "Operational Expenses", "tele2": "Office supplies",
+    "english": "Services", "valoda": "Services", "sarunvalodas": "Services",
+    "rent": "Rent & Admin", "komisija": "Operational Expenses",
+    "apkalpošanas": "Operational Expenses", "noma": "Operational Expenses", # Moved 'noma' here
+    "telpu noma": "Operational Expenses", 
+    "tele2": "Office supplies",
     "reimbursement": "Erasmus+", "erasmus": "Erasmus+"
 }
 
 PROJ_FILTER = {
-    "nva": "NVA / ESF", "erasmus": "Erasmus",
+    "erasmus": "Erasmus",
     "200b": "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)",
     "300b": "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
     "400b": "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
@@ -92,7 +94,8 @@ PROJ_FILTER = {
     "ring": "Say it Ring", "fy": "Forever Young", "forever": "Forever Young",
     "sense": "Sense (design)", "latviesu": "Latvian language",
     "english": "English language", "meistarklase": "Workshops",
-    "workshops": "Workshops", "noma": "Office Rent", "animators": "Animators",
+    "workshops": "Workshops", "sarunvalodas": "Workshops", 
+    "noma": "Office Rent", "animators": "Animators",
     "bolt": "projekti", "wolt": "projekti"
 }
 
@@ -147,40 +150,47 @@ if uploaded_file:
         df_proc['K (KREDITS)'] = amounts_raw.where(df_filtered[7] == 'K').fillna(0.0)
         df_proc['D (DEBETS)'] = amounts_raw.where(df_filtered[7] == 'D').fillna(0.0)
         
-        # --- CALCULATION LOGIC (INTERNAL) ---
+        # --- CALCULATION LOGIC ---
         def process_row(row):
             purpose_lower = str(row['Purpose']).lower()
             amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
             name_lower = str(row['Name Surname']).lower()
             full_text = f"{purpose_lower} {name_lower}"
 
-            # Determine Project first
-            membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "fy", "biedra nauda", "dalibmaksa par klubu"]
-            is_membership_signal = any(kw in full_text for kw in membership_keywords)
-            
+            # 1. Determine Project
             project = "YF Main"
-            if is_membership_signal:
-                if amt in [20, 30]: project = "Forever Young"
-                elif amt in [15, 25]: project = "YF teens"
-            else:
-                for key, proj in PROJ_FILTER.items():
-                    if key in purpose_lower:
-                        project = proj
-                        break
             
-            # Determine Category
+            if re.search(r'\bnva\b', purpose_lower):
+                project = "NVA / ESF"
+            else:
+                membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "fy", "biedra nauda", "dalibmaksa par klubu"]
+                is_membership_signal = any(kw in full_text for kw in membership_keywords)
+                
+                if is_membership_signal:
+                    if amt in [20, 30]: project = "Forever Young"
+                    elif amt in [15, 25]: project = "YF teens"
+                else:
+                    for key, proj in PROJ_FILTER.items():
+                        if key in purpose_lower:
+                            project = proj
+                            break
+            
+            # 2. Determine Category
             category = ""
             if project == "Say it Ring":
                 category = "Services"
             else:
-                for kw, cat in CAT_FILTER.items():
-                    if kw.lower() in full_text:
-                        category = cat
-                        break
+                # Prioritize 'noma' or 'telpu noma' for Operational Expenses
+                if "noma" in full_text:
+                    category = "Operational Expenses"
+                else:
+                    for kw, cat in CAT_FILTER.items():
+                        if kw.lower() in full_text:
+                            category = cat
+                            break
             
             return category, project
 
-        # Apply logic and create columns in original order
         results = df_proc.apply(process_row, axis=1)
         df_proc['Category'] = [r[0] for r in results]
         df_proc['Project Name'] = [r[1] for r in results]
@@ -197,7 +207,6 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Dynamic Range Fix
                 last_row = len(df_proc) + 1
                 worksheet.data_validation(f'I2:I{last_row}', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation(f'J2:J{last_row}', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})

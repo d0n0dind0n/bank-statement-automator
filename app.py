@@ -61,7 +61,7 @@ PROJ_OPTIONS = [
 
 CAT_FILTER = {
     "dalības": "Membership", "biedru nauda": "Membership", "dalībmaksa": "Membership",
-    "abonements": "Membership", "biedriba nauda": "Membership", "yf2024": "Membership", 
+    "abonements": "Membership", "biedriba nauda": "Membership", "yf202": "Membership", 
     "fy": "Membership", "dalibmaksa par klubu": "Membership", "biedra nauda": "Membership",
     "ziedojums": "Donations", "ziedojumu": "Donations",
     "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries",

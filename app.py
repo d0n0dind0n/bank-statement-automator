@@ -38,7 +38,7 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. UPDATED OPTIONS & FILTERS ---
+# --- 3. FINAL CONFIGURATION FOR CATEGORIES AND PROJECTS ---
 CAT_OPTIONS = [
     "Membership", "YF Logistics", "YF Travel", "Erasmus+ reimbursement",
     "Services", "Salaries", "Donations", "Operational Expenses",
@@ -46,9 +46,17 @@ CAT_OPTIONS = [
 ]
 
 PROJ_OPTIONS = [
-    "NVA / ESF", "Erasmus+ General", "YF Main", "YF kids", "YF teens", 
-    "Forever Young", "Say it Ring", "Latvian language", "Workshops", 
-    "projekti", "Young Folks"
+    "projekti", "NVA / ESF", "Erasmus+ KA210 project \"Young Business\"",
+    "Erasmus+ project Project 101239301 \"Zemlya\"", "Erasmus+ KA210 \"SHIFT\"",
+    "projekts Lapas GEAR UP! \"Līderu Skola\"",
+    "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)",
+    "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
+    "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
+    "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
+    "Erasmus+ General", "nodokļi", "YF Main", "YF kids", "YF teens",
+    "Youth", "Forever Young", "New York", "Iceland", "Japan",
+    "Say it Ring", "Sense (design)", "Latvian language", "English language",
+    "Workshops", "Office Rent", "Animators"
 ]
 
 CAT_FILTER = {
@@ -56,23 +64,32 @@ CAT_FILTER = {
     "abonements": "Membership", "ziedojums": "Donations", "ziedojumu": "Donations",
     "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries",
     "autoratlīdzības": "Salaries", "autoratlidzibas": "Salaries", "līgums": "Salaries",
-    "pirkums": "YF Logistics", "bolt": "YF Logistics", "wolt": "YF Logistics",
-    "citybee": "YF Logistics", "travel": "YF Travel", "japan": "YF Travel",
+    "bolt": "YF Logistics", "wolt": "YF Logistics", "citybee": "YF Logistics",
+    "pirkums": "YF Logistics", "travel": "YF Travel", "japan": "YF Travel",
     "iceland": "YF Travel", "lekcija": "Services", "latviesu": "Services",
     "english": "Services", "valoda": "Services", "rent": "Rent & Admin",
     "noma": "Rent & Admin", "komisija": "Operational Expenses",
     "apkalpošanas": "Operational Expenses", "tele2": "Office supplies",
-    "kancelejas": "Office supplies", "reimbursement": "Erasmus+ reimbursement",
-    "erasmus": "Erasmus+ reimbursement"
+    "reimbursement": "Erasmus+ reimbursement", "erasmus": "Erasmus+ reimbursement"
 }
 
 PROJ_FILTER = {
-    "esf": "NVA / ESF", "nva": "NVA / ESF", "ligums": "NVA / ESF",
-    "erasmus": "Erasmus+ General", "gredzen": "Say it Ring", "ring": "Say it Ring",
+    "200b": "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)",
+    "300b": "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
+    "400b": "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
+    "500b": "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
+    "zemlya": "Erasmus+ project Project 101239301 \"Zemlya\"",
+    "shift": "Erasmus+ KA210 \"SHIFT\"",
+    "young business": "Erasmus+ KA210 project \"Young Business\"",
+    "gear up": "projekts Lapas GEAR UP! \"Līderu Skola\"",
+    "līderu skola": "projekts Lapas GEAR UP! \"Līderu Skola\"",
+    "esf": "NVA / ESF", "nva": "NVA / ESF", "nodokļi": "nodokļi",
     "kids": "YF kids", "teens": "YF teens", "forever": "Forever Young",
-    "latviesu": "Latvian language", "valoda": "Latvian language",
-    "meistarklase": "Workshops", "lekcija": "Workshops", "bolt": "projekti",
-    "pirkums": "projekti", "citybee": "projekti"
+    "new york": "New York", "iceland": "Iceland", "japan": "Japan",
+    "gredzen": "Say it Ring", "ring": "Say it Ring", "sense": "Sense (design)",
+    "latviesu": "Latvian language", "english": "English language",
+    "meistarklase": "Workshops", "workshops": "Workshops", "noma": "Office Rent",
+    "animators": "Animators", "bolt": "projekti", "wolt": "projekti"
 }
 
 # --- 4. DRIVE UPLOAD ---
@@ -94,7 +111,7 @@ if uploaded_file:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        # Filename logic based on first transaction
+        # Filename logic
         try:
             first_date_str = df_filtered.iloc[0, 2] 
             dt_obj = datetime.strptime(first_date_str, "%d.%m.%Y")
@@ -148,6 +165,7 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
+                # Set dropdowns
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 

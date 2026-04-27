@@ -38,9 +38,9 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. FINAL CONFIGURATION FOR CATEGORIES AND PROJECTS ---
+# --- 3. UPDATED CONFIGURATION ---
 CAT_OPTIONS = [
-    "Membership", "YF Logistics", "YF Travel", "Erasmus+ reimbursement",
+    "Membership", "YF Logistics", "YF Travel", "Erasmus+",
     "Services", "Salaries", "Donations", "Operational Expenses",
     "Office supplies", "Rent & Admin", "Single payment"
 ]
@@ -53,7 +53,7 @@ PROJ_OPTIONS = [
     "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
     "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
     "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
-    "Erasmus+ General", "nodokļi", "YF Main", "YF kids", "YF teens",
+    "Erasmus+ General", "Erasmus", "nodokļi", "YF Main", "YF kids", "YF teens",
     "Youth", "Forever Young", "New York", "Iceland", "Japan",
     "Say it Ring", "Sense (design)", "Latvian language", "English language",
     "Workshops", "Office Rent", "Animators"
@@ -70,10 +70,11 @@ CAT_FILTER = {
     "english": "Services", "valoda": "Services", "rent": "Rent & Admin",
     "noma": "Rent & Admin", "komisija": "Operational Expenses",
     "apkalpošanas": "Operational Expenses", "tele2": "Office supplies",
-    "reimbursement": "Erasmus+ reimbursement", "erasmus": "Erasmus+ reimbursement"
+    "reimbursement": "Erasmus+", "erasmus": "Erasmus+"
 }
 
 PROJ_FILTER = {
+    "nva": "NVA / ESF", "erasmus": "Erasmus",
     "200b": "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)",
     "300b": "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)",
     "400b": "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)",
@@ -83,13 +84,12 @@ PROJ_FILTER = {
     "young business": "Erasmus+ KA210 project \"Young Business\"",
     "gear up": "projekts Lapas GEAR UP! \"Līderu Skola\"",
     "līderu skola": "projekts Lapas GEAR UP! \"Līderu Skola\"",
-    "esf": "NVA / ESF", "nva": "NVA / ESF", "nodokļi": "nodokļi",
-    "kids": "YF kids", "teens": "YF teens", "forever": "Forever Young",
-    "new york": "New York", "iceland": "Iceland", "japan": "Japan",
-    "gredzen": "Say it Ring", "ring": "Say it Ring", "sense": "Sense (design)",
-    "latviesu": "Latvian language", "english": "English language",
-    "meistarklase": "Workshops", "workshops": "Workshops", "noma": "Office Rent",
-    "animators": "Animators", "bolt": "projekti", "wolt": "projekti"
+    "nodokļi": "nodokļi", "kids": "YF kids", "new york": "New York",
+    "iceland": "Iceland", "japan": "Japan", "gredzen": "Say it Ring",
+    "ring": "Say it Ring", "sense": "Sense (design)", "latviesu": "Latvian language",
+    "english": "English language", "meistarklase": "Workshops",
+    "workshops": "Workshops", "noma": "Office Rent", "animators": "Animators",
+    "bolt": "projekti", "wolt": "projekti"
 }
 
 # --- 4. DRIVE UPLOAD ---
@@ -140,18 +140,38 @@ if uploaded_file:
         df_proc['Bankas SWIFT'] = [x[3] for x in parsed_data]
         df_proc['Purpose'] = df_filtered[4]
         
-        amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce')
-        df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
-        df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
+        # Numeric parsing for Amounts
+        amounts_raw = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
+        df_proc['K (KREDITS)'] = amounts_raw.where(df_filtered[7] == 'K').fillna(0.0)
+        df_proc['D (DEBETS)'] = amounts_raw.where(df_filtered[7] == 'D').fillna(0.0)
         
-        def auto_map(row, mapping_dict, default=""):
+        # --- LOGIC FOR CATEGORY & PROJECT ---
+        def get_category(row):
             text = (str(row['Purpose']) + " " + str(row['Name Surname'])).lower()
-            for kw, val in mapping_dict.items():
-                if kw.lower() in text: return val
-            return default
+            for kw, cat in CAT_FILTER.items():
+                if kw.lower() in text: return cat
+            return ""
 
-        df_proc['Category'] = df_proc.apply(lambda r: auto_map(r, CAT_FILTER), axis=1)
-        df_proc['Project Name'] = df_proc.apply(lambda r: auto_map(r, PROJ_FILTER, "YF Main"), axis=1)
+        def get_project_name(row):
+            category = row['Category']
+            # Get max amount (either credit or debit) for the logic
+            amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
+            purpose_lower = str(row['Purpose']).lower()
+            
+            if category == "Membership":
+                if amt in [20, 30]:
+                    return "Forever Young"
+                elif amt in [15, 25]:
+                    return "YF teens"
+            
+            for key, proj in PROJ_FILTER.items():
+                if key in purpose_lower:
+                    return proj
+                    
+            return "YF Main"
+
+        df_proc['Category'] = df_proc.apply(get_category, axis=1)
+        df_proc['Project Name'] = df_proc.apply(get_project_name, axis=1)
         df_proc['Commentary'] = ""
 
         if st.button(f"🚀 CREATE {sheet_name.upper()} SHEET"):
@@ -165,7 +185,7 @@ if uploaded_file:
                 for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
                 options_sheet.hide()
 
-                # Set dropdowns
+                # Excel Data Validations (Dropdowns)
                 worksheet.data_validation('I2:I2000', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation('J2:J2000', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
                 

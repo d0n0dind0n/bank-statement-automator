@@ -39,12 +39,16 @@ MEMBERSHIP_MAP = get_membership_mapping()
 CAT_OPTIONS = ["Membership", "YF Logistics", "YF Travel", "Erasmus+", "Services", "Salaries", "Donations", "Operational Expenses", "Office supplies", "Rent & Admin", "Single payment"]
 PROJ_OPTIONS = ["projekti", "NVA / ESF", "Erasmus+ KA210 project \"Young Business\"", "Erasmus+ project Project 101239301 \"Zemlya\"", "Erasmus+ KA210 \"SHIFT\"", "projekts Lapas GEAR UP! \"Līderu Skola\"", "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)", "Valsts Kase projekts KA210 \"Youth Identity Hub\" (400B)", "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)", "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)", "Erasmus+ General", "Erasmus", "nodokļi", "YF Main", "YF kids", "YF teens", "Youth", "Forever Young", "New York", "Iceland", "Japan", "Say it Ring", "Sense (design)", "Latvian language", "English language", "Workshops", "Office Rent", "Animators"]
 
-# --- 4. LOGIC ---
+# --- 4. DATA PROCESSING LOGIC ---
 def process_row(row):
     purpose_lower = str(row['Purpose']).lower()
     name_lower = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose_lower} {name_lower}"
     
+    # RULE: Card purchases (PIRKUMS) are always YF Main / Operational Expenses
+    if "pirkums" in full_text:
+        return "Operational Expenses", "YF Main"
+
     project = "YF Main"
     if name_lower in MEMBERSHIP_MAP:
         project = MEMBERSHIP_MAP[name_lower]
@@ -95,36 +99,35 @@ if uploaded_file:
         # 1. Date
         df_final['Date'] = df_filtered[2]
         
-        # 2. Name Surname & 3. Personal Code (Parsing from common Partner info column)
+        # 2. Name Surname & 3. Personal Code
         df_final['Name Surname'] = df_filtered[3].apply(lambda x: str(x).split('|')[0].strip())
         df_final['Personal Code'] = df_filtered[3].apply(lambda x: str(x).split('|')[1].strip() if '|' in str(x) else "")
         
-        # 4. Konta numurs (IBAN) - Robust check
+        # 4. Konta numurs (IBAN) - Only fill if it starts with LV, else BLANK
         def get_iban(row):
-            # Check column 1 (standard), then check if it's hidden in column 3
-            c1, c3 = str(row[1]), str(row[3])
+            c1, c3 = str(row[1]).strip(), str(row[3]).strip()
             if c1.startswith("LV"): return c1
-            match = re.search(r'LV\d{2}[A-Z]{4}[A-Z0-9]{13}', c3) # Find IBAN in partner string
-            return match.group(0) if match else c1
+            # Search for IBAN pattern in the partner info field
+            match = re.search(r'LV\d{2}[A-Z]{4}[A-Z0-9]{13}', c3)
+            return match.group(0) if match else "" # Blank if no LV account found
 
         df_final['Konta numurs'] = df_filtered.apply(get_iban, axis=1)
         
-        # 5. Bankas SWIFT - Robust check
+        # 5. Bankas SWIFT - Scanner for BIC patterns
         def get_swift(row):
-            c8 = str(row[8]).strip()
-            if len(c8) >= 8 and c8.isupper(): return c8
-            # Fallback: check columns 9 or 10 if 8 is empty
-            for i in [9, 10]:
+            for i in range(1, len(row)):
                 val = str(row[i]).strip()
-                if len(val) >= 8 and val.isupper(): return val
-            return c8
-
+                if re.match(r'^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$', val):
+                    # Exclude the IBAN itself if it matches (IBAN starts with letters too)
+                    if not val.startswith("LV"):
+                        return val
+            return ""
         df_final['Bankas SWIFT'] = df_filtered.apply(get_swift, axis=1)
         
         # 6. Purpose
         df_final['Purpose'] = df_filtered[4]
         
-        # 7. K & 8. D
+        # 7. K (KREDITS) & 8. D (DEBETS)
         amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
         df_final['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K', 0.0)
         df_final['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D', 0.0)
@@ -141,16 +144,19 @@ if uploaded_file:
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_final.to_excel(writer, index=False, sheet_name='Report')
-                workbook, worksheet = writer.book, writer.sheets['Report']
+                workbook = writer.book
+                worksheet = writer.sheets['Report']
                 
-                # Dropdown Setup
+                # Setup Dropdowns
                 opt_sheet = workbook.add_worksheet('Lists')
                 for i, c in enumerate(CAT_OPTIONS): opt_sheet.write(i, 0, c)
                 for i, p in enumerate(PROJ_OPTIONS): opt_sheet.write(i, 1, p)
                 opt_sheet.hide()
                 
                 last_row = len(df_final) + 1
-                # Dropdowns for Category (Col I) and Project (Col J)
+                # G = Purpose, H = K, I = D, J = Category, K = Project Name
+                # Based on the column count: A(0), B(1), C(2), D(3), E(4), F(5), G(6), H(7), I(8), J(9), K(10)
+                # Category is Col 9 (J), Project is Col 10 (K)
                 worksheet.data_validation(f'I2:I{last_row}', {'validate': 'list', 'source': '=Lists!$A$1:$A$11'})
                 worksheet.data_validation(f'J2:J{last_row}', {'validate': 'list', 'source': '=Lists!$B$1:$B$26'})
 
@@ -164,7 +170,7 @@ if uploaded_file:
             media = MediaIoBaseUpload(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
             file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
             
-            st.success("Complete!")
+            st.success("Success!")
             st.link_button("📂 Open Google Sheet", file.get('webViewLink'))
 
     except Exception as e:

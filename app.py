@@ -15,14 +15,16 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-# --- NEW: LOAD MEMBERSHIP DATABASE ---
-# It is expected that membership_2.csv has 'Name' and 'Project' columns
+# --- LOAD MEMBERSHIP DATABASE ---
+# Updated to use 'Participant' and 'Club' columns from membership.csv
 try:
-    membership_df = pd.read_csv("membership_2.csv")
-    membership_df['Name'] = membership_df['Name'].astype(str).str.lower().str.strip()
-    membership_lookup = dict(zip(membership_df['Name'], membership_df['Project']))
+    membership_df = pd.read_csv("membership.csv")
+    # Convert Participant names to lowercase for robust matching
+    membership_df['Participant_Clean'] = membership_df['Participant'].astype(str).str.lower().str.strip()
+    # Create lookup: {name: club_name}
+    membership_lookup = dict(zip(membership_df['Participant_Clean'], membership_df['Club']))
 except Exception as e:
-    st.error(f"Could not load membership_2.csv: {e}")
+    st.error(f"Could not load membership.csv: {e}")
     membership_lookup = {}
 
 # --- 2. AUTENTIFIKĀCIJA ---
@@ -119,7 +121,7 @@ def process_row(row):
     name_lower = name_orig.lower().strip()
     full_text = f"{purpose_lower} {name_lower}"
 
-    # First determine Category
+    # 1. Determine Category First
     category = ""
     if "say it ring" in full_text:
         category = "Services"
@@ -133,19 +135,17 @@ def process_row(row):
                 category = cat
                 break
 
-    # Determine Project
+    # 2. Determine Project
     project = "YF Main"
     
-    # NEW FILTER: If Membership or Workshop (Services) and name is in membership_2.csv
+    # NEW FILTER: Only if Category is Membership or Services (Workshops), check CSV names
     if category in ["Membership", "Services"] and name_lower in membership_lookup:
         project = membership_lookup[name_lower]
     else:
-        # Regular Matching Logic
+        # Standard Fallback Logic
         if re.search(r'\bnva\b', purpose_lower):
             project = "NVA / ESF"
         elif "lv nodarbības" in full_text or re.search(r'\b(latv|val)\b', full_text):
-            project = "Latvian language"
-        elif re.search(r'\b(latv|val)\b', full_text):
             project = "Latvian language"
         else:
             membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "yf2026", "fy", "biedra nauda", "dalibmaksa par klubu"]
@@ -162,7 +162,7 @@ def process_row(row):
     
     return category, project
 
-# --- 5. DRIVE & APP FLOW ---
+# --- 5. DRIVE & APP FLOW (Standard Rest of Code) ---
 def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])

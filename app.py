@@ -39,13 +39,13 @@ MEMBERSHIP_MAP = get_membership_mapping()
 CAT_OPTIONS = ["Membership", "YF Logistics", "YF Travel", "Erasmus+", "Services", "Salaries", "Donations", "Operational Expenses", "Office supplies", "Rent & Admin", "Single payment"]
 PROJ_OPTIONS = ["projekti", "NVA / ESF", "Erasmus+ KA210 project \"Young Business\"", "Erasmus+ project Project 101239301 \"Zemlya\"", "Erasmus+ KA210 \"SHIFT\"", "projekts Lapas GEAR UP! \"Līderu Skola\"", "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)", "Valsts Kase projekts KA210 \"Youth Identity Hub\" (400B)", "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)", "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)", "Erasmus+ General", "Erasmus", "nodokļi", "YF Main", "YF kids", "YF teens", "Youth", "Forever Young", "New York", "Iceland", "Japan", "Say it Ring", "Sense (design)", "Latvian language", "English language", "Workshops", "Office Rent", "Animators"]
 
-# --- 4. DATA PROCESSING LOGIC ---
+# --- 4. PROCESSING LOGIC ---
 def process_row(row):
     purpose_lower = str(row['Purpose']).lower()
     name_lower = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose_lower} {name_lower}"
     
-    # RULE: Card purchases (PIRKUMS) are always YF Main / Operational Expenses
+    # RULE: All card purchases (PIRKUMS) are strictly YF Main
     if "pirkums" in full_text:
         return "Operational Expenses", "YF Main"
 
@@ -92,6 +92,7 @@ uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 if uploaded_file:
     try:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8').fillna("")
+        # Only keep rows that look like transactions (contain a date in col index 2)
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
         df_final = pd.DataFrame()
@@ -103,25 +104,31 @@ if uploaded_file:
         df_final['Name Surname'] = df_filtered[3].apply(lambda x: str(x).split('|')[0].strip())
         df_final['Personal Code'] = df_filtered[3].apply(lambda x: str(x).split('|')[1].strip() if '|' in str(x) else "")
         
-        # 4. Konta numurs (IBAN) - Only fill if it starts with LV, else BLANK
+        # 4. Konta numurs (IBAN) - If no LV... account, leave BLANK
         def get_iban(row):
-            c1, c3 = str(row[1]).strip(), str(row[3]).strip()
-            if c1.startswith("LV"): return c1
-            # Search for IBAN pattern in the partner info field
-            match = re.search(r'LV\d{2}[A-Z]{4}[A-Z0-9]{13}', c3)
-            return match.group(0) if match else "" # Blank if no LV account found
+            c1 = str(row[1]).strip()
+            c3 = str(row[3]).strip()
+            if c1.upper().startswith("LV"): return c1
+            match = re.search(r'LV\d{2}[A-Z]{4}[A-Z0-9]{13}', c3, re.IGNORECASE)
+            return match.group(0).upper() if match else ""
 
         df_final['Konta numurs'] = df_filtered.apply(get_iban, axis=1)
         
-        # 5. Bankas SWIFT - Scanner for BIC patterns
+        # 5. Bankas SWIFT - Robust Scanner for BIC codes
         def get_swift(row):
-            for i in range(1, len(row)):
-                val = str(row[i]).strip()
-                if re.match(r'^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$', val):
-                    # Exclude the IBAN itself if it matches (IBAN starts with letters too)
-                    if not val.startswith("LV"):
-                        return val
+            # Check all columns for an 8 or 11 character code that looks like a BIC (e.g., PARXLV22)
+            # Pattern: 4 letters (bank), 2 letters (country - LV), 2+ chars (location)
+            bic_pattern = re.compile(r'^[A-Z]{4}LV[A-Z0-9]{2}([A-Z0-9]{3})?$')
+            for i in range(len(row)):
+                val = str(row[i]).strip().upper()
+                if bic_pattern.match(val):
+                    return val
+            # Fallback: check index 8 specifically if scanner misses
+            fallback = str(row[8]).strip().upper()
+            if len(fallback) in [8, 11] and fallback[0].isalpha():
+                return fallback
             return ""
+
         df_final['Bankas SWIFT'] = df_filtered.apply(get_swift, axis=1)
         
         # 6. Purpose
@@ -144,19 +151,16 @@ if uploaded_file:
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_final.to_excel(writer, index=False, sheet_name='Report')
-                workbook = writer.book
-                worksheet = writer.sheets['Report']
+                workbook, worksheet = writer.book, writer.sheets['Report']
                 
-                # Setup Dropdowns
+                # Dropdown Lists
                 opt_sheet = workbook.add_worksheet('Lists')
                 for i, c in enumerate(CAT_OPTIONS): opt_sheet.write(i, 0, c)
                 for i, p in enumerate(PROJ_OPTIONS): opt_sheet.write(i, 1, p)
                 opt_sheet.hide()
                 
                 last_row = len(df_final) + 1
-                # G = Purpose, H = K, I = D, J = Category, K = Project Name
-                # Based on the column count: A(0), B(1), C(2), D(3), E(4), F(5), G(6), H(7), I(8), J(9), K(10)
-                # Category is Col 9 (J), Project is Col 10 (K)
+                # Category is Col I (index 8), Project is Col J (index 9)
                 worksheet.data_validation(f'I2:I{last_row}', {'validate': 'list', 'source': '=Lists!$A$1:$A$11'})
                 worksheet.data_validation(f'J2:J{last_row}', {'validate': 'list', 'source': '=Lists!$B$1:$B$26'})
 
@@ -170,8 +174,8 @@ if uploaded_file:
             media = MediaIoBaseUpload(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
             file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
             
-            st.success("Success!")
+            st.success("Complete!")
             st.link_button("📂 Open Google Sheet", file.get('webViewLink'))
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Processing Error: {e}")

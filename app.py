@@ -16,12 +16,9 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # --- LOAD MEMBERSHIP DATABASE ---
-# Uses 'Participant' and 'Club' columns from membership.csv
 try:
     membership_df = pd.read_csv("membership.csv")
-    # Standardize names for matching (lowercase, no extra spaces)
     membership_df['Participant_Clean'] = membership_df['Participant'].astype(str).str.lower().str.strip()
-    # Create lookup: {name: club_name}
     membership_lookup = dict(zip(membership_df['Participant_Clean'], membership_df['Club']))
 except Exception as e:
     st.error(f"Could not load membership.csv: {e}")
@@ -73,8 +70,9 @@ PROJ_OPTIONS = [
 
 CAT_FILTER = {
     "dalības": "Membership", "biedru nauda": "Membership", "dalībmaksa": "Membership",
-    "abonements": "Membership", "biedriba nauda": "Membership", "yf2024": "Membership", 
-    "yf2026": "Membership", "fy": "Membership", "dalibmaksa par klubu": "Membership", "biedra nauda": "Membership",
+    "dalibmaksa": "Membership", "abonements": "Membership", "biedriba nauda": "Membership", 
+    "yf2024": "Membership", "yf2026": "Membership", "fy": "Membership", 
+    "dalibmaksa par klubu": "Membership", "biedra nauda": "Membership",
     "ziedojums": "Donations", "ziedojumu": "Donations",
     "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries",
     "autoratlīdzības": "Salaries", "autoratlidzibas": "Salaries", "līgums": "Salaries",
@@ -113,7 +111,7 @@ PROJ_FILTER = {
     "bolt": "projekti", "wolt": "projekti"
 }
 
-# --- 4. DATA LOGIC (REFINED PRIORITY) ---
+# --- 4. DATA LOGIC ---
 def process_row(row):
     purpose_lower = str(row['Purpose']).lower()
     amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
@@ -121,7 +119,11 @@ def process_row(row):
     name_lower = name_orig.lower().strip()
     full_text = f"{purpose_lower} {name_lower}"
 
-    # Step 1: Assign Category first
+    # Step 1: Specific Check for NVA
+    if "ligums nva" in purpose_lower or "līgums nva" in purpose_lower:
+        return "Salaries", "NVA / ESF"
+
+    # Step 2: Normal Category Detection
     category = ""
     if "say it ring" in full_text:
         category = "Services"
@@ -135,22 +137,24 @@ def process_row(row):
                 category = cat
                 break
 
-    # Step 2: Assign Project Name
-    project = "YF Main" # Default
+    # Step 3: Project Assignment
+    project = "YF Main"
     
-    # PRIORITY 1: Check Membership List (Fixes Diana Ivanova and others)
-    # If the name is in the membership.csv, we trust that project name over anything else.
-    if name_lower in membership_lookup:
+    # Check CSV Lookup ONLY for Membership and Workshop (Services)
+    if (category == "Membership" or category == "Services") and name_lower in membership_lookup:
         project = membership_lookup[name_lower]
-    
-    # PRIORITY 2: If not in CSV, apply keyword/amount logic
     else:
+        # Fallback keyword logic
         if re.search(r'\bnva\b', purpose_lower):
             project = "NVA / ESF"
         elif "lv nodarbības" in full_text or re.search(r'\b(latv|val)\b', full_text):
             project = "Latvian language"
         else:
-            membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "biedriba nauda", "yf2024", "yf2026", "fy", "biedra nauda", "dalibmaksa par klubu"]
+            membership_keywords = [
+                "dalības", "biedru nauda", "dalībmaksa", "dalibmaksa", 
+                "biedriba nauda", "yf2024", "yf2026", "fy", 
+                "biedra nauda", "dalibmaksa par klubu"
+            ]
             is_membership_signal = any(kw in full_text for kw in membership_keywords)
             
             if is_membership_signal:

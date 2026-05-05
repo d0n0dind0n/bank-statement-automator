@@ -98,12 +98,9 @@ if uploaded_file:
         for _, row in df_filtered.iterrows():
             cat, proj = get_cat_and_proj(row)
             
-            # Identify Name for all payments
+            # Name extraction: Blank if field is empty (no fallback text)
             raw_name_field = str(row[3])
             display_name = raw_name_field.split('|')[0].strip()
-            # If the name field is empty or just contains a pipe, try to fallback to Purpose if needed
-            if not display_name and "pirkums" in str(row[4]).lower():
-                display_name = "Card Purchase / Pirkums"
 
             is_debit = str(row[7]).strip().upper() == 'D'
             amount = float(str(row[5]).replace(',', '.'))
@@ -164,7 +161,7 @@ if uploaded_file:
             media = MediaIoBaseUpload(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
             file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
             
-            st.success("All payments now include names!")
+            st.success("Processed! Names are kept blank where data is missing.")
             st.link_button("📂 Open Google Sheet", file.get('webViewLink'))
 
     except Exception as e:

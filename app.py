@@ -16,10 +16,10 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # --- LOAD MEMBERSHIP DATABASE ---
-# Updated to use 'Participant' and 'Club' columns from membership.csv
+# Uses 'Participant' and 'Club' columns from membership.csv
 try:
     membership_df = pd.read_csv("membership.csv")
-    # Convert Participant names to lowercase for robust matching
+    # Standardize names for matching (lowercase, no extra spaces)
     membership_df['Participant_Clean'] = membership_df['Participant'].astype(str).str.lower().str.strip()
     # Create lookup: {name: club_name}
     membership_lookup = dict(zip(membership_df['Participant_Clean'], membership_df['Club']))
@@ -50,7 +50,7 @@ if st.session_state.auth_creds is None:
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 3. FILTRI ---
+# --- 3. OPTIONS & FILTERS ---
 CAT_OPTIONS = [
     "Membership", "YF Logistics", "YF Travel", "Erasmus+",
     "Services", "Salaries", "Donations", "Operational Expenses",
@@ -113,7 +113,7 @@ PROJ_FILTER = {
     "bolt": "projekti", "wolt": "projekti"
 }
 
-# --- 4. DATA LOGIC ---
+# --- 4. DATA LOGIC (REFINED PRIORITY) ---
 def process_row(row):
     purpose_lower = str(row['Purpose']).lower()
     amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
@@ -121,7 +121,7 @@ def process_row(row):
     name_lower = name_orig.lower().strip()
     full_text = f"{purpose_lower} {name_lower}"
 
-    # 1. Determine Category First
+    # Step 1: Assign Category first
     category = ""
     if "say it ring" in full_text:
         category = "Services"
@@ -135,14 +135,16 @@ def process_row(row):
                 category = cat
                 break
 
-    # 2. Determine Project
-    project = "YF Main"
+    # Step 2: Assign Project Name
+    project = "YF Main" # Default
     
-    # NEW FILTER: Only if Category is Membership or Services (Workshops), check CSV names
-    if category in ["Membership", "Services"] and name_lower in membership_lookup:
+    # PRIORITY 1: Check Membership List (Fixes Diana Ivanova and others)
+    # If the name is in the membership.csv, we trust that project name over anything else.
+    if name_lower in membership_lookup:
         project = membership_lookup[name_lower]
+    
+    # PRIORITY 2: If not in CSV, apply keyword/amount logic
     else:
-        # Standard Fallback Logic
         if re.search(r'\bnva\b', purpose_lower):
             project = "NVA / ESF"
         elif "lv nodarbības" in full_text or re.search(r'\b(latv|val)\b', full_text):
@@ -162,7 +164,7 @@ def process_row(row):
     
     return category, project
 
-# --- 5. DRIVE & APP FLOW (Standard Rest of Code) ---
+# --- 5. DRIVE & APP FLOW ---
 def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])

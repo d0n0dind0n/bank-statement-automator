@@ -41,16 +41,14 @@ PROJ_OPTIONS = ["projekti", "NVA / ESF", "Erasmus+ KA210 project \"Young Busines
 
 # --- 4. PROCESSING LOGIC ---
 def get_cat_and_proj(row_data):
-    """Determines Category and Project first to decide if bank info is needed."""
     purpose_lower = str(row_data[4]).lower()
     name_lower = str(row_data[3]).split('|')[0].lower().strip()
     full_text = f"{purpose_lower} {name_lower}"
     
-    # Card Purchase Rule
+    # Rule: Card Purchase (PIRKUMS) -> YF Main
     if "pirkums" in full_text:
         return "Operational Expenses", "YF Main"
 
-    # Default Project Logic
     project = "YF Main"
     if name_lower in MEMBERSHIP_MAP:
         project = MEMBERSHIP_MAP[name_lower]
@@ -60,7 +58,6 @@ def get_cat_and_proj(row_data):
                 project = ref_project
                 break
 
-    # Category Logic
     category = "Services"
     if any(x in full_text for x in ["dalības", "biedru nauda", "membership"]) or any(x in project for x in ["Forever Young", "YF kids", "YF teens", "Youth"]):
         category = "Membership"
@@ -68,8 +65,6 @@ def get_cat_and_proj(row_data):
         category = "Operational Expenses"
     elif "alga" in full_text:
         category = "Salaries"
-    elif "workshops" in project.lower():
-        category = "Services" # Project is Workshops, but we still check for bank info later
         
     return category, project
 
@@ -97,36 +92,37 @@ uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 if uploaded_file:
     try:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8').fillna("")
+        # Keep only rows with a date in column 2
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
         processed_data = []
 
         for _, row in df_filtered.iterrows():
-            # 1. Determine Category and Project FIRST
+            # Get Cat/Proj
             cat, proj = get_cat_and_proj(row)
             
-            # 2. Extract Bank Info ONLY if Membership or Workshops
+            # Determine debit/credit
+            is_debit = str(row[7]).strip().upper() == 'D'
+            amount = float(str(row[5]).replace(',', '.'))
+            
+            # Extract Bank Info ONLY if (Membership or Workshops)
             iban = ""
             swift = ""
-            
             if cat == "Membership" or "workshops" in proj.lower():
-                # Extract IBAN (Konta numurs)
+                # Extract IBAN
                 txt = " ".join([str(val) for val in row])
                 iban_match = re.search(r'LV\d{2}[A-Z]{4}[A-Z0-9]{13}', txt, re.IGNORECASE)
-                if iban_match:
-                    iban = iban_match.group(0).upper()
+                if iban_match: iban = iban_match.group(0).upper()
                 
-                # Extract SWIFT (Bankas SWIFT)
+                # Extract SWIFT (Robust Scan)
                 bic_pattern = r'[A-Z]{4}LV[A-Z0-9]{2}([A-Z0-9]{3})?'
                 for val in row:
-                    swift_found = re.search(bic_pattern, str(val).upper())
-                    if swift_found:
-                        candidate = swift_found.group(0)
-                        if not candidate.startswith("LV"): # Ensure it's not the IBAN
-                            swift = candidate
-                            break
+                    found = re.search(bic_pattern, str(val).upper())
+                    if found and not found.group(0).startswith("LV"):
+                        swift = found.group(0)
+                        break
 
-            # 3. Build the Final Row
+            # Build row
             processed_data.append({
                 'Date': row[2],
                 'Name Surname': str(row[3]).split('|')[0].strip(),
@@ -134,8 +130,8 @@ if uploaded_file:
                 'Konta numurs': iban,
                 'Bankas SWIFT': swift,
                 'Purpose': row[4],
-                'K (KREDITS)': float(str(row[5]).replace(',', '.')) if str(row[7]).strip().upper() == 'K' else 0.0,
-                'D (DEBETS)': float(str(row[5]).replace(',', '.')) if str(row[7]).strip().upper() == 'D' else 0.0,
+                'K (KREDITS)': 0.0 if is_debit else amount,
+                'D (DEBETS)': amount if is_debit else 0.0,
                 'Category': cat,
                 'Project Name': proj,
                 'Commentary': ""
@@ -149,6 +145,7 @@ if uploaded_file:
                 df_final.to_excel(writer, index=False, sheet_name='Report')
                 workbook, worksheet = writer.book, writer.sheets['Report']
                 
+                # Dropdowns
                 opt_sheet = workbook.add_worksheet('Lists')
                 for i, c in enumerate(CAT_OPTIONS): opt_sheet.write(i, 0, c)
                 for i, p in enumerate(PROJ_OPTIONS): opt_sheet.write(i, 1, p)
@@ -168,7 +165,7 @@ if uploaded_file:
             media = MediaIoBaseUpload(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
             file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
             
-            st.success("Successfully processed with restrictions!")
+            st.success("Debit and Credit info processed!")
             st.link_button("📂 Open Google Sheet", file.get('webViewLink'))
 
     except Exception as e:

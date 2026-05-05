@@ -91,23 +91,50 @@ if uploaded_file:
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
         df_final = pd.DataFrame()
+        
+        # 1. Date
         df_final['Date'] = df_filtered[2]
+        
+        # 2. Name Surname & 3. Personal Code (Parsing from common Partner info column)
         df_final['Name Surname'] = df_filtered[3].apply(lambda x: str(x).split('|')[0].strip())
         df_final['Personal Code'] = df_filtered[3].apply(lambda x: str(x).split('|')[1].strip() if '|' in str(x) else "")
         
-        # CORRECTED COLUMN INDEXING
-        df_final['Konta numurs'] = df_filtered[1].astype(str).str.strip() # Usually Index 1 for IBAN
-        df_final['Bankas SWIFT'] = df_filtered[8].astype(str).str.strip() # Usually Index 8 for SWIFT
+        # 4. Konta numurs (IBAN) - Robust check
+        def get_iban(row):
+            # Check column 1 (standard), then check if it's hidden in column 3
+            c1, c3 = str(row[1]), str(row[3])
+            if c1.startswith("LV"): return c1
+            match = re.search(r'LV\d{2}[A-Z]{4}[A-Z0-9]{13}', c3) # Find IBAN in partner string
+            return match.group(0) if match else c1
+
+        df_final['Konta numurs'] = df_filtered.apply(get_iban, axis=1)
         
+        # 5. Bankas SWIFT - Robust check
+        def get_swift(row):
+            c8 = str(row[8]).strip()
+            if len(c8) >= 8 and c8.isupper(): return c8
+            # Fallback: check columns 9 or 10 if 8 is empty
+            for i in [9, 10]:
+                val = str(row[i]).strip()
+                if len(val) >= 8 and val.isupper(): return val
+            return c8
+
+        df_final['Bankas SWIFT'] = df_filtered.apply(get_swift, axis=1)
+        
+        # 6. Purpose
         df_final['Purpose'] = df_filtered[4]
         
+        # 7. K & 8. D
         amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
         df_final['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K', 0.0)
         df_final['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D', 0.0)
         
+        # 9. Category & 10. Project Name
         results = df_final.apply(process_row, axis=1)
         df_final['Category'] = [r[0] for r in results]
         df_final['Project Name'] = [r[1] for r in results]
+        
+        # 11. Commentary
         df_final['Commentary'] = ""
 
         if st.button("🚀 PROCESS & OPEN IN GOOGLE SHEETS"):
@@ -116,13 +143,14 @@ if uploaded_file:
                 df_final.to_excel(writer, index=False, sheet_name='Report')
                 workbook, worksheet = writer.book, writer.sheets['Report']
                 
-                # Dropdown setup
+                # Dropdown Setup
                 opt_sheet = workbook.add_worksheet('Lists')
                 for i, c in enumerate(CAT_OPTIONS): opt_sheet.write(i, 0, c)
                 for i, p in enumerate(PROJ_OPTIONS): opt_sheet.write(i, 1, p)
                 opt_sheet.hide()
                 
                 last_row = len(df_final) + 1
+                # Dropdowns for Category (Col I) and Project (Col J)
                 worksheet.data_validation(f'I2:I{last_row}', {'validate': 'list', 'source': '=Lists!$A$1:$A$11'})
                 worksheet.data_validation(f'J2:J{last_row}', {'validate': 'list', 'source': '=Lists!$B$1:$B$26'})
 

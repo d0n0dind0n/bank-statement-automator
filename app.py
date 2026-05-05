@@ -16,42 +16,40 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-# --- 2. LOAD MEMBERSHIP REFERENCE (EXCEL ONLY) ---
+# --- 2. LOAD MEMBERSHIP REFERENCE (CSV) ---
 @st.cache_data
 def get_membership_mapping():
     mapping = {}
-    file_path = "membership.xlsx"
+    file_path = "membership.csv"
     
     if not os.path.exists(file_path):
-        st.error(f"❌ Error: {file_path} not found in your GitHub files.")
+        st.warning("⚠️ membership.csv not found in repository. Please check your GitHub files.")
         return {}
 
     try:
-        # Explicitly using openpyxl engine for Excel
-        ref_df = pd.read_excel(file_path, engine='openpyxl')
-        
-        # Clean column names (remove hidden spaces)
+        # CSV is used to avoid openpyxl dependency issues
+        ref_df = pd.read_csv(file_path)
         ref_df.columns = [str(c).strip() for c in ref_df.columns]
         
         for _, row in ref_df.iterrows():
             project = str(row['Club']).strip() if pd.notna(row['Club']) else "YF Main"
             
-            # Map Participant Name
+            # Map Participant name
             if 'Participant' in ref_df.columns and pd.notna(row['Participant']):
                 mapping[str(row['Participant']).lower().strip()] = project
             
-            # Map Parent Name
+            # Map Parent name
             if 'Parent' in ref_df.columns and pd.notna(row['Parent']):
                 mapping[str(row['Parent']).lower().strip()] = project
                 
         return mapping
     except Exception as e:
-        st.error(f"⚠️ Could not read Excel file: {e}. Ensure 'openpyxl' is installed.")
+        st.error(f"⚠️ Error reading membership.csv: {e}")
         return {}
 
 MEMBERSHIP_MAP = get_membership_mapping()
 
-# --- 3. FILTER SETTINGS ---
+# --- 3. FILTER OPTIONS ---
 CAT_OPTIONS = [
     "Membership", "YF Logistics", "YF Travel", "Erasmus+",
     "Services", "Salaries", "Donations", "Operational Expenses",
@@ -72,7 +70,7 @@ PROJ_OPTIONS = [
     "Workshops", "Office Rent", "Animators"
 ]
 
-# --- 4. CORE LOGIC ---
+# --- 4. DATA PROCESSING LOGIC ---
 def process_row(row):
     purpose_lower = str(row['Purpose']).lower()
     name_lower = str(row['Name Surname']).lower().strip()
@@ -80,7 +78,7 @@ def process_row(row):
     
     project = "YF Main"
     
-    # Check Excel Mapping (Name or Purpose mention)
+    # Check for direct name match or child name in purpose from membership.csv
     if name_lower in MEMBERSHIP_MAP:
         project = MEMBERSHIP_MAP[name_lower]
     else:
@@ -89,51 +87,127 @@ def process_row(row):
                 project = ref_project
                 break
 
-    # Keyword Overrides
+    # Secondary specific filters
     if project == "YF Main":
         if "lv nodarbības" in full_text or re.search(r'\b(latv|val)\b', full_text):
             project = "Latvian language"
         elif re.search(r'\bnva\b', purpose_lower):
             project = "NVA / ESF"
+        elif "akademicheskiy risunok" in full_text:
+            project = "Workshops"
+        elif any(kw in full_text for kw in ["kids", "bērnu"]):
+            project = "YF kids"
 
     # Category Logic
     category = "Services" # Default
-    if "dalības" in full_text or "biedru nauda" in full_text:
+    membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "membership"]
+    is_membership = any(kw in full_text for kw in membership_keywords)
+    is_club_project = any(cp in project for cp in ["Forever Young", "YF kids", "YF teens", "YF Youth"])
+
+    if is_membership or is_club_project:
         category = "Membership"
-    elif any(x in project for x in ["Forever Young", "YF kids", "YF teens", "Youth"]):
-        category = "Membership"
+    elif "noma" in full_text:
+        category = "Operational Expenses"
+    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratlīdzība"]):
+        category = "Salaries"
     
     return category, project
 
-# --- 5. APP INTERFACE & PROCESSING ---
-st.title("🏦 Bank Automator (Excel Sync)")
+# --- 5. AUTHENTICATION ---
+if 'auth_creds' not in st.session_state:
+    st.session_state.auth_creds = None
 
-# (Standard Auth and File Upload logic remains same as your previous working versions)
-uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
+if "code" in st.query_params:
+    try:
+        code = st.query_params.get("code")
+        google = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI, scope=SCOPES)
+        token = google.fetch_token(TOKEN_URL, client_secret=CLIENT_SECRET, code=code)
+        st.session_state.auth_creds = token
+        st.query_params.clear()
+        st.rerun()
+    except Exception as e:
+        st.error(f"Login error: {e}")
+
+if st.session_state.auth_creds is None:
+    google = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI, scope=SCOPES)
+    auth_url, _ = google.authorization_url(AUTH_URL, access_type="offline", prompt="select_account")
+    st.title("🏦 Bank Statement Automator")
+    st.link_button("🔑 Login with Google", auth_url)
+    st.stop()
+
+# --- 6. DRIVE UPLOAD FUNCTION ---
+def upload_and_convert(file_data, file_name):
+    from google.oauth2.credentials import Credentials
+    creds = Credentials(token=st.session_state.auth_creds['access_token'])
+    service = build('drive', 'v3', credentials=creds)
+    file_metadata = {
+        'name': file_name,
+        'mimeType': 'application/vnd.google-apps.spreadsheet'
+    }
+    media = MediaIoBaseUpload(
+        file_data, 
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+        resumable=True
+    )
+    file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+    return file.get('webViewLink')
+
+# --- 7. MAIN APP INTERFACE ---
+st.title("🏦 Bank Automator")
+uploaded_file = st.file_uploader("Upload Bank Statement (CSV)", type="csv")
 
 if uploaded_file:
     try:
+        # Reading bank CSV
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8').fillna("")
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
-        
-        # Build processing DF
+
+        # Extract date for naming
+        try:
+            dt_obj = datetime.strptime(df_filtered.iloc[0, 2], "%d.%m.%Y")
+            sheet_name = f"Bank_Report_{dt_obj.strftime('%B_%Y')}"
+        except:
+            sheet_name = f"Bank_Export_{datetime.now().strftime('%Y-%m-%d')}"
+
+        # Clean Bank Data
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
         df_proc['Name Surname'] = df_filtered[3].apply(lambda x: str(x).split('|')[0].strip())
         df_proc['Purpose'] = df_filtered[4]
         
-        # Apply logic
+        amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
+        df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K', 0.0)
+        df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D', 0.0)
+        
+        # Apply Logic
         results = df_proc.apply(process_row, axis=1)
         df_proc['Category'] = [r[0] for r in results]
         df_proc['Project Name'] = [r[1] for r in results]
-        
-        st.write("### Preview of Matched Projects")
-        st.dataframe(df_proc[['Date', 'Name Surname', 'Project Name', 'Category']].head(10))
-        
-        # Button to trigger Sheets upload (standard logic)
-        if st.button("🚀 Process & Upload to Sheets"):
-            # ... [XlsxWriter logic here] ...
-            st.success("Successfully processed using Excel references!")
+        df_proc['Commentary'] = ""
+
+        st.write("### Data Preview")
+        st.dataframe(df_proc.head(10))
+
+        if st.button(f"🚀 CREATE {sheet_name.upper()} SHEET"):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df_proc.to_excel(writer, index=False, sheet_name='BankReport')
+                workbook, worksheet = writer.book, writer.sheets['BankReport']
+                
+                # Add dropdowns
+                options_sheet = workbook.add_worksheet('HiddenData')
+                for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
+                for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
+                options_sheet.hide()
+
+                last_row = len(df_proc) + 1
+                worksheet.data_validation(f'G2:G{last_row}', {'validate': 'list', 'source': '=HiddenData!$A$1:$A$11'})
+                worksheet.data_validation(f'H2:H{last_row}', {'validate': 'list', 'source': '=HiddenData!$B$1:$B$30'})
+
+            output.seek(0)
+            link = upload_and_convert(output, sheet_name)
+            st.success("File Successfully Created!")
+            st.markdown(f'[🔗 Open Google Sheet]({link})')
 
     except Exception as e:
-        st.error(f"Processing error: {e}")
+        st.error(f"Processing Error: {e}")

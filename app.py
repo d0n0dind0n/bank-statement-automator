@@ -8,7 +8,7 @@ from datetime import datetime
 import re
 import os
 
-# --- 1. CONFIGURATION ---
+# --- 1. KONFIGURĀCIJA ---
 REDIRECT_URI = "https://bank-statement-automator-wm4atvbmldyrwdehnbnkzb.streamlit.app/"
 CLIENT_ID = st.secrets["google_oauth"]["client_id"]
 CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
@@ -16,8 +16,7 @@ AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
-# --- 2. AUTOMATIC CLUB LOOKUP GENERATION ---
-# This part replaces the old CSV lookup with your 4 text files [cite: 1, 5, 6, 8]
+# --- 2. LOAD MEMBERSHIP FROM TXT FILES (New separation logic) ---
 membership_files = {
     "YF Youth.txt": "YF Youth",
     "Forever Young.txt": "Forever Young",
@@ -32,15 +31,13 @@ for file_name, project_label in membership_files.items():
         try:
             with open(file_name, "r", encoding="utf-8") as f:
                 for line in f:
-                    # Clean the name to ensure matching works regardless of case
-                    name = line.strip().lower()
-                    # Filter out source tags or empty lines
-                    if name and "[source" not in name and "participant" not in name:
-                        membership_lookup[name] = project_label
+                    name_clean = line.strip().lower()
+                    if name_clean and name_clean != "participant":
+                        membership_lookup[name_clean] = project_label
         except Exception as e:
-            st.error(f"Error reading {file_name}: {e}")
+            st.error(f"Could not load {file_name}: {e}")
 
-# --- 3. GOOGLE AUTHENTICATION ---
+# --- 3. AUTENTIFIKĀCIJA ---
 if 'auth_creds' not in st.session_state:
     st.session_state.auth_creds = None
 
@@ -53,61 +50,95 @@ if "code" in st.query_params:
         st.query_params.clear()
         st.rerun()
     except Exception as e:
-        st.error(f"Authentication Error: {e}")
+        st.error(f"Pieteikšanās kļūda: {e}")
         st.query_params.clear()
 
 if st.session_state.auth_creds is None:
     google = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI, scope=SCOPES)
     auth_url, _ = google.authorization_url(AUTH_URL, access_type="offline", prompt="select_account")
     st.title("🏦 Bank to Sheets")
-    st.markdown("Please log in to your Google account to enable Drive uploads.")
     st.link_button("🔑 Login with Google", auth_url)
     st.stop()
 
-# --- 4. CATEGORIES & OPTIONS ---
+# --- 4. OPTIONS & FILTERS (Original lists) ---
 CAT_OPTIONS = ["Membership", "YF Logistics", "YF Travel", "Erasmus+", "Services", "Salaries", "Donations", "Operational Expenses", "Office supplies", "Rent & Admin", "Single payment"]
 PROJ_OPTIONS = ["projekti", "NVA / ESF", "Erasmus+ KA210 project \"Young Business\"", "Erasmus+ project Project 101239301 \"Zemlya\"", "Erasmus+ KA210 \"SHIFT\"", "projekts Lapas GEAR UP! \"Līderu Skola\"", "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)", "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)", "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)", "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)", "Erasmus+ General", "Erasmus", "nodokļi", "YF Main", "YF kids", "YF teens", "YF Youth", "Forever Young", "New York", "Iceland", "Japan", "Say it Ring", "Sense (design)", "Latvian language", "English language", "Workshops", "Office Rent", "Animators"]
 
-# --- 5. DATA PROCESSING LOGIC ---
+CAT_FILTER = {
+    "dalības": "Membership", "biedru nauda": "Membership", "dalībmaksa": "Membership", "dalibmaksa": "Membership", "abonements": "Membership", "biedriba nauda": "Membership", 
+    "yf2024": "Membership", "yf2026": "Membership", "fy": "Membership", "dalibmaksa par klubu": "Membership", "biedra nauda": "Membership",
+    "ziedojums": "Donations", "ziedojumu": "Donations", "stipendija": "Salaries", "alga": "Salaries", "nodokli": "Salaries", "autoratlīdzības": "Salaries", "autoratlidzibas": "Salaries", "līgums": "Salaries", "ligums nva": "Salaries",
+    "bolt": "YF Logistics", "wolt": "YF Logistics", "citybee": "YF Logistics", "pirkums": "YF Logistics", "travel": "YF Travel", "japan": "YF Travel", "iceland": "YF Travel", 
+    "lekcija": "Services", "latviesu": "Services", "english": "Services", "valoda": "Services", "sarunvalodas": "Services", "akademicheskiy risunok": "Services", "akademicheskiy": "Services", "gleznieciba": "Services", "akademiska": "Services", "urok": "Services", "lv nodarbības": "Services",
+    "rent": "Rent & Admin", "komisija": "Operational Expenses", "apkalpošanas": "Operational Expenses", "noma": "Operational Expenses", "telpu noma": "Operational Expenses", "kartes mēneša maksa": "Operational Expenses",
+    "tele2": "Office supplies", "reimbursement": "Erasmus+", "erasmus": "Erasmus+"
+}
+
+PROJ_FILTER = {
+    "erasmus": "Erasmus", "200b": "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)", "300b": "Valsts Kase projekts ESC30 \"Youth Podcast Station\" (300B)", "400b": "Valsts Kase projekts KA210 \"Youth Identiy Hub\" (400B)", "500b": "Valsts Kase projekts ESC30\"Youth Work Bus\" (500B)",
+    "zemlya": "Erasmus+ project Project 101239301 \"Zemlya\"", "shift": "Erasmus+ KA210 \"SHIFT\"", "young business": "Erasmus+ KA210 project \"Young Business\"", "gear up": "projekts Lapas GEAR UP! \"Līderu Skola\"", "līderu skola": "projekts Lapas GEAR UP! \"Līderu Skola\"",
+    "nodokļi": "nodokļi", "kids": "YF kids", "bērnu": "YF kids", "new york": "New York", "iceland": "Iceland", "japan": "Japan", "gredzen": "Say it Ring", "ring": "Say it Ring", "fy": "Forever Young", "forever": "Forever Young", "sense": "Sense (design)", 
+    "latviesu": "Latvian language", "lv nodarbības": "Latvian language", "akademicheskiy risunok": "Workshops", "akademicheskiy": "Workshops", "english": "English language", "meistarklase": "Workshops", "workshops": "Workshops", "sarunvalodas": "Workshops", 
+    "noma": "Office Rent", "animators": "Animators", "bolt": "projekti", "wolt": "projekti"
+}
+
+# --- 5. DATA LOGIC (Modified part) ---
 def process_row(row):
     purpose_lower = str(row['Purpose']).lower()
-    name_lower = str(row['Name Surname']).lower().strip()
+    amt = max(row['K (KREDITS)'], row['D (DEBETS)'])
+    name_orig = str(row['Name Surname'])
+    name_lower = name_orig.lower().strip()
     full_text = f"{purpose_lower} {name_lower}"
 
-    # Default category/project
+    # Step 1: Specific Check for NVA
+    if "ligums nva" in purpose_lower or "līgums nva" in purpose_lower:
+        return "Salaries", "NVA / ESF"
+
+    # Step 2: Normal Category Detection
     category = "Single payment"
+    if "say it ring" in full_text:
+        category = "Services"
+    elif "noma" in full_text:
+        category = "Operational Expenses"
+    elif "lv nodarbības" in full_text or re.search(r'\b(latv|val)\b', full_text):
+        category = "Services"
+    else:
+        for kw, cat in CAT_FILTER.items():
+            if kw.lower() in full_text:
+                category = cat
+                break
+
+    # Step 3: Project Assignment (Separation Logic)
     project = "YF Main"
-
-    # Step 1: Detect Category based on Keywords
-    cat_keywords = {
-        "dalīb": "Membership", "biedr": "Membership", "abonement": "Membership",
-        "ziedojum": "Donations", "stipendija": "Salaries", "alga": "Salaries",
-        "bolt": "YF Logistics", "wolt": "YF Logistics", "citybee": "YF Logistics",
-        "noma": "Rent & Admin", "komisija": "Operational Expenses"
-    }
-    for kw, cat in cat_keywords.items():
-        if kw in full_text:
-            category = cat
-            break
-
-    # Step 2: Assign Project based on the Text Files (Highest Priority)
-    # This checks if the name (e.g., Dmitrijs Tarasovs) exists in your files [cite: 1, 5, 6, 8]
+    
+    # Priority: Check TXT file lookup first
     if name_lower in membership_lookup:
         project = membership_lookup[name_lower]
-        # If they are in a club file, it's likely a Membership or Service fee
+        # Auto-set category if found in membership files
         if category == "Single payment":
             category = "Membership"
+    else:
+        # Fallback keyword logic
+        if re.search(r'\bnva\b', purpose_lower):
+            project = "NVA / ESF"
+        elif "lv nodarbības" in full_text or re.search(r'\b(latv|val)\b', full_text):
+            project = "Latvian language"
+        else:
+            membership_keywords = ["dalības", "biedru nauda", "dalībmaksa", "dalibmaksa", "biedriba nauda", "yf2024", "yf2026", "fy", "biedra nauda", "dalibmaksa par klubu"]
+            is_membership_signal = any(kw in full_text for kw in membership_keywords)
+            
+            if is_membership_signal:
+                if amt in [20, 30]: project = "Forever Young"
+                elif amt in [15, 25]: project = "YF teens"
+            else:
+                for key, proj in PROJ_FILTER.items():
+                    if key in full_text:
+                        project = proj
+                        break
     
-    # Step 3: Specific Project Overrides (NVA, Projects, etc.)
-    if "nva" in purpose_lower:
-        project = "NVA / ESF"
-        category = "Salaries"
-    elif "200b" in purpose_lower:
-        project = "Valsts Kase projekts DiscoverEU \"My Europ too\" (200B)"
-
     return category, project
 
-# --- 6. DRIVE INTEGRATION ---
+# --- 6. DRIVE & APP FLOW (Original logic) ---
 def upload_and_convert(file_data, file_name):
     from google.oauth2.credentials import Credentials
     creds = Credentials(token=st.session_state.auth_creds['access_token'])
@@ -117,48 +148,70 @@ def upload_and_convert(file_data, file_name):
     file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
     return file.get('webViewLink')
 
-# --- 7. STREAMLIT INTERFACE ---
-st.title("🚀 Bank Automator v2")
-st.info(f"Loaded {len(membership_lookup)} members from internal lists.")
+st.title("🏦 Bank Automator")
+st.write(f"Active database: {len(membership_lookup)} names loaded from project files.")
 
 uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 
 if uploaded_file:
     try:
-        # Load and filter data
-        df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8').fillna("")
-        df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}')].copy()
+        df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
+        df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        # Parse Name, IBAN, etc.
-        def parse_details(val):
+        def parse_partner_details(val):
+            if not val: return "", "", "", ""
             parts = [p.strip() for p in str(val).split('|')]
-            return parts[0] if parts else ""
+            name = parts[0]
+            p_code, iban, swift = "", "", ""
+            for p in parts[1:]:
+                clean = p.replace(" ", "").upper()
+                if re.match(r'^\d{6}-\d{5}$', clean): p_code = clean
+                elif len(clean) >= 15 and clean[0:2].isalpha(): iban = clean
+                elif len(clean) in [8, 11] and clean[0:4].isalpha(): swift = clean
+            return name, p_code, iban, swift
 
+        parsed_data = df_filtered[3].apply(parse_partner_details)
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
-        df_proc['Name Surname'] = df_filtered[3].apply(parse_details)
+        df_proc['Name Surname'] = [x[0] for x in parsed_data]
+        df_proc['Personal Code'] = [x[1] for x in parsed_data]
+        df_proc['Konta numurs'] = [x[2] for x in parsed_data]
+        df_proc['Bankas SWIFT'] = [x[3] for x in parsed_data]
         df_proc['Purpose'] = df_filtered[4]
         
-        amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
-        df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
-        df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
-
-        # Apply the new logic
+        amounts_raw = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
+        df_proc['K (KREDITS)'] = amounts_raw.where(df_filtered[7] == 'K').fillna(0.0)
+        df_proc['D (DEBETS)'] = amounts_raw.where(df_filtered[7] == 'D').fillna(0.0)
+        
         results = df_proc.apply(process_row, axis=1)
         df_proc['Category'] = [r[0] for r in results]
         df_proc['Project Name'] = [r[1] for r in results]
+        df_proc['Commentary'] = ""
 
-        st.dataframe(df_proc)
-
-        if st.button("📤 Export to Google Sheets"):
+        if st.button(f"🚀 CREATE BANK REPORT"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_proc.to_excel(writer, index=False, sheet_name='Report')
+                df_proc.to_excel(writer, index=False, sheet_name='BankReport')
+                workbook, worksheet = writer.book, writer.sheets['BankReport']
+                options_sheet = workbook.add_worksheet('HiddenData')
+                for i, cat in enumerate(CAT_OPTIONS): options_sheet.write(i, 0, cat)
+                for i, proj in enumerate(PROJ_OPTIONS): options_sheet.write(i, 1, proj)
+                options_sheet.hide()
+
+                last_row = len(df_proc) + 1
+                worksheet.data_validation(f'I2:I{last_row}', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
+                worksheet.data_validation(f'J2:J{last_row}', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(PROJ_OPTIONS)}'})
+                
+                header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
+                for col_num, value in enumerate(df_proc.columns.values):
+                    worksheet.write(0, col_num, value, header_fmt)
+                
+                worksheet.set_column('A:B', 15); worksheet.set_column('C:E', 28); worksheet.set_column('F:F', 50); worksheet.set_column('G:K', 25)
+
             output.seek(0)
-            
-            link = upload_and_convert(output, f"Bank_Report_{datetime.now().strftime('%Y%m%d')}")
-            st.success("File uploaded successfully!")
-            st.link_button("📊 Open Google Sheet", link)
+            link = upload_and_convert(output, f"Bank_Export_{datetime.now().strftime('%Y-%m-%d')}")
+            if link:
+                st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#0F9D58;color:white;padding:25px;border-radius:15px;text-align:center;font-size:22px;font-weight:bold;">📊 OPEN GOOGLE SHEET</div></a>', unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Error processing file: {e}")
+        st.error(f"Error: {e}")

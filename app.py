@@ -54,8 +54,8 @@ if "code" in st.query_params:
 if st.session_state.auth_creds is None:
     google = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI, scope=SCOPES)
     auth_url, _ = google.authorization_url(AUTH_URL, access_type="offline", prompt="select_account")
-    st.title("🏦 Bank to Sheets")
-    st.link_button("🔑 Login with Google", auth_url)
+    st.title("Bank to Sheets")
+    st.link_button("Login with Google", auth_url)
     st.stop()
 
 # --- 4. DROPDOWN OPTIONS ---
@@ -99,6 +99,7 @@ def process_row(row):
     elif "kouch" in full_text or "coach" in full_text: sub = "Coaching"
     elif "reimbursement" in full_text: sub = "Reimbursement"
     elif "nometne" in full_text or "camp" in full_text: sub = "Winter camp"
+    if "sarunvalodas" in full_text in full_text: sub = "Sarunvalodas"
 
     return cat, div, sub
 
@@ -165,7 +166,7 @@ if uploaded_file:
         df_proc['Category'], df_proc['Division'], df_proc['Sub'] = zip(*results)
         df_proc['Commentary'] = ""
 
-        if st.button("📤 CREATE GOOGLE SHEET"):
+        if st.button("CREATE GOOGLE SHEET"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_proc.to_excel(writer, index=False, sheet_name='BankReport')

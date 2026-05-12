@@ -73,7 +73,7 @@ def process_row(row):
 
     # Category Logic
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]): cat = "Donations"
-    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl"]): cat = "Salaries"
+    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "Līguma", "8.3-8.1"]): cat = "Salaries"
     elif "erasmus" in full_text or "reimbursement" in full_text: cat = "Erasmus+"
     elif any(kw in full_text for kw in ["biedru nauda", "dalības maksa", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
@@ -83,7 +83,7 @@ def process_row(row):
     # Division Logic
     if name in membership_lookup:
         div = membership_lookup[name]
-    elif "nva" in full_text: div = "NVA / ESF"
+    elif any(kw in full_text for kw in ["Līguma", "8.3-8.1", "NVA"]): div = "NVA / ESF"
     elif "bolt" in full_text or "citybee" in full_text: div = "YF logistics"
     elif "internetbank" in full_text: div = "Internetbank"
     elif "komisija" in full_text or "kartes mēneša maksa" in full_text: div = "Comission"

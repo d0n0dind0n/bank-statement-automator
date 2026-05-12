@@ -69,7 +69,7 @@ def process_row(row):
     name = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose} {name}"
     
-    cat, div, sub = "Services", "YF Main", "" # Set default to Services
+    cat, div, sub = "", "YF Main", "" # Set default to Services
 
     # Category Logic
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]): cat = "Donations"

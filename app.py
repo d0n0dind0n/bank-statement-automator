@@ -128,25 +128,36 @@ if uploaded_file:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
 
-        def parse_details(val):
+        def parse_partner_details(val):
+            if not val: return "", "", "", ""
             parts = [p.strip() for p in str(val).split('|')]
-            name = parts[0] if parts else ""
-            return name
+            name = parts[0]
+            p_code, iban, swift = "", "", ""
+            for p in parts[1:]:
+                clean = p.replace(" ", "").upper()
+                if re.match(r'^\d{6}-\d{5}$', clean): p_code = clean
+                elif len(clean) >= 15 and clean[0:2].isalpha(): iban = clean
+                elif len(clean) in [8, 11] and clean[0:4].isalpha(): swift = clean
+            return name, p_code, iban, swift
 
+        parsed_data = df_filtered[3].apply(parse_partner_details)
         df_proc = pd.DataFrame()
         df_proc['Date'] = df_filtered[2]
-        df_proc['Name Surname'] = df_filtered[3].apply(parse_details)
+        df_proc['Name Surname'] = [x[0] for x in parsed_data]
+        df_proc['Personal Code'] = [x[1] for x in parsed_data]
+        df_proc['Konta numurs'] = [x[2] for x in parsed_data]
+        df_proc['Bankas SWIFT'] = [x[3] for x in parsed_data]
         df_proc['Purpose'] = df_filtered[4]
         
-        amounts = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
-        df_proc['K (KREDITS)'] = amounts.where(df_filtered[7] == 'K').fillna(0.0)
-        df_proc['D (DEBETS)'] = amounts.where(df_filtered[7] == 'D').fillna(0.0)
+        amounts_raw = pd.to_numeric(df_filtered[5].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
+        df_proc['K (KREDITS)'] = amounts_raw.where(df_filtered[7] == 'K').fillna(0.0)
+        df_proc['D (DEBETS)'] = amounts_raw.where(df_filtered[7] == 'D').fillna(0.0)
         
         results = df_proc.apply(process_row, axis=1)
         df_proc['Category'], df_proc['Division'], df_proc['Sub'] = zip(*results)
         df_proc['Commentary'] = ""
 
-        st.dataframe(df_proc)
+        # PREVIEW REMOVED AS REQUESTED
 
         if st.button("📤 CREATE GOOGLE SHEET"):
             output = io.BytesIO()
@@ -162,16 +173,20 @@ if uploaded_file:
                 data_sheet.hide()
 
                 last_r = len(df_proc) + 1
-                worksheet.data_validation(f'H2:H{last_r}', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
-                worksheet.data_validation(f'I2:I{last_r}', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(DIV_OPTIONS)}'})
-                worksheet.data_validation(f'J2:J{last_r}', {'validate': 'list', 'source': f'=HiddenData!$C$1:$C${len(SUB_OPTIONS)}'})
+                # Dropdowns are now in Columns I, J, K because of the restored columns
+                worksheet.data_validation(f'I2:I{last_r}', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
+                worksheet.data_validation(f'J2:J{last_r}', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(DIV_OPTIONS)}'})
+                worksheet.data_validation(f'K2:K{last_r}', {'validate': 'list', 'source': f'=HiddenData!$C$1:$C${len(SUB_OPTIONS)}'})
                 
                 header_fmt = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
+                
+                # Column widths
+                worksheet.set_column('A:B', 12); worksheet.set_column('C:E', 25); worksheet.set_column('F:F', 40); worksheet.set_column('G:L', 18)
 
             output.seek(0)
-            link = upload_and_convert(output, f"Bank_Report_{datetime.now().strftime('%Y-%m-%d')}")
+            link = upload_and_convert(output, f"Bank_Export_{datetime.now().strftime('%Y-%m-%d')}")
             if link:
                 st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#0F9D58;color:white;padding:20px;border-radius:10px;text-align:center;font-size:18px;">📊 OPEN GOOGLE SHEET</div></a>', unsafe_allow_html=True)
     except Exception as e:

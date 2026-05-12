@@ -69,11 +69,11 @@ def process_row(row):
     name = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose} {name}"
     
-    cat, div, sub = "", "YF Main", ""
+    cat, div, sub = "Services", "YF Main", "" # Set default to Services
 
     # Category Logic
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]): cat = "Donations"
-    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "Līguma", "8.3-8.1"]): cat = "Salaries"
+    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1"]): cat = "Salaries"
     elif "erasmus" in full_text or "reimbursement" in full_text: cat = "Erasmus+"
     elif any(kw in full_text for kw in ["biedru nauda", "dalības maksa", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
@@ -83,7 +83,7 @@ def process_row(row):
     # Division Logic
     if name in membership_lookup:
         div = membership_lookup[name]
-    elif any(kw in full_text for kw in ["Līguma", "8.3-8.1", "NVA"]): div = "NVA / ESF"
+    elif any(kw in full_text for kw in ["līguma", "8.3-8.1", "nva"]): div = "NVA / ESF"
     elif "bolt" in full_text or "citybee" in full_text: div = "YF logistics"
     elif "internetbank" in full_text: div = "Internetbank"
     elif "komisija" in full_text or "kartes mēneša maksa" in full_text: div = "Comission"
@@ -99,7 +99,7 @@ def process_row(row):
     elif "kouch" in full_text or "coach" in full_text: sub = "Coaching"
     elif "reimbursement" in full_text: sub = "Reimbursement"
     elif "nometne" in full_text or "camp" in full_text: sub = "Winter camp"
-    if "sarunvalodas" in full_text in full_text: sub = "Sarunvalodas"
+    if "sarunvalodas" in full_text: sub = "Sarunvalodas"
 
     return cat, div, sub
 
@@ -131,11 +131,20 @@ if uploaded_file:
         # 1. Filter for valid dates
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
         
-        # 2. NEW: Filter out Opening balance, Turnover, and Closing balance
+        # 2. Filter out Opening balance, Turnover, and Closing balance
         exclude_keywords = ["opening balance", "turnover", "closing balance", "sākuma atlikums", "apgrozījums", "beigu atlikums"]
         pattern = '|'.join(exclude_keywords)
-        # We check column 4 (Purpose) for these keywords
         df_filtered = df_filtered[~df_filtered[4].astype(str).str.lower().str.contains(pattern, na=False)]
+
+        # --- NEW: Dynamic File Naming based on Month in File ---
+        try:
+            # Look at the first valid date in column 2
+            first_date_str = df_filtered.iloc[0][2]
+            date_obj = datetime.strptime(first_date_str, "%d.%m.%Y")
+            month_name = date_obj.strftime("%B") # e.g. "January"
+            file_name = f"YF-{month_name}"
+        except:
+            file_name = f"Bank_Export_{datetime.now().strftime('%Y-%m-%d')}"
 
         def parse_partner_details(val):
             if not val: return "", "", "", ""
@@ -166,7 +175,7 @@ if uploaded_file:
         df_proc['Category'], df_proc['Division'], df_proc['Sub'] = zip(*results)
         df_proc['Commentary'] = ""
 
-        if st.button("CREATE GOOGLE SHEET"):
+        if st.button(f"CREATE {file_name.upper()} SHEET"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_proc.to_excel(writer, index=False, sheet_name='BankReport')
@@ -190,8 +199,8 @@ if uploaded_file:
                 worksheet.set_column('A:B', 12); worksheet.set_column('C:E', 25); worksheet.set_column('F:F', 40); worksheet.set_column('G:L', 18)
 
             output.seek(0)
-            link = upload_and_convert(output, f"Bank_Export_{datetime.now().strftime('%Y-%m-%d')}")
+            link = upload_and_convert(output, file_name)
             if link:
-                st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#0F9D58;color:white;padding:20px;border-radius:10px;text-align:center;font-size:18px;">📊 OPEN GOOGLE SHEET</div></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link}" target="_blank" style="text-decoration:none;"><div style="background-color:#0F9D58;color:white;padding:20px;border-radius:10px;text-align:center;font-size:18px;">📊 OPEN {file_name.upper()}</div></a>', unsafe_allow_html=True)
     except Exception as e:
         st.error(f"Processing error: {e}")

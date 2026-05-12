@@ -69,11 +69,11 @@ def process_row(row):
     name = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose} {name}"
     
-    cat, div, sub = "", "", ""
+    cat, div, sub = "", "YF Main", ""
 
     # Category Logic
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]): cat = "Donations"
-    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratlidz"]): cat = "Salaries"
+    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl"]): cat = "Salaries"
     elif "erasmus" in full_text or "reimbursement" in full_text: cat = "Erasmus+"
     elif any(kw in full_text for kw in ["biedru nauda", "dalības maksa", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"

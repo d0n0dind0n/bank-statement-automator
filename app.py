@@ -63,7 +63,7 @@ CAT_OPTIONS = ["Donations", "Erasmus+", "Help Ukraine", "Membership", "Operation
 DIV_OPTIONS = ["Academic drawing", "BNI Artmen", "Comission", "E+ YE Voices in action", "English language", "Erasmus", "Erasmus Adult", "Forever Young", "German", "Internetbank", "JEF Europe", "Latvian language", "Madeira", "NVA / ESF", "Office Rent", "Office supplies", "Reimbursement", "Say it Ring", "Sense (design)", "Taxes", 'Valsts Kase projekts ESC30 "Youth', "Workshops", "YE GREEN REALITIES", "YF kids", "YF logistics", "YF Main", "YF Teens", "YF Youth"]
 SUB_OPTIONS = ["APV GREEN REALITIES", "Brainring", "Christmas party", "Cinema production", "Coaching", "Creative jam event", "Italy?", "Reimbursement", "Sarunvalodas", "Speed Friending", "Umniy dom", "Winter camp"]
 
-# --- 5. UPDATED FILTERING LOGIC ---
+# --- 5. FILTERING LOGIC ---
 def process_row(row):
     purpose = str(row['Purpose']).lower()
     name = str(row['Name Surname']).lower().strip()
@@ -126,7 +126,15 @@ uploaded_file = st.file_uploader("Upload Bank CSV", type="csv")
 if uploaded_file:
     try:
         df_raw = pd.read_csv(uploaded_file, sep=';', header=None, encoding='utf-8', on_bad_lines='skip').fillna("")
+        
+        # 1. Filter for valid dates
         df_filtered = df_raw[df_raw[2].astype(str).str.contains(r'\d{2}\.\d{2}\.\d{4}', na=False)].copy()
+        
+        # 2. NEW: Filter out Opening balance, Turnover, and Closing balance
+        exclude_keywords = ["opening balance", "turnover", "closing balance", "sākuma atlikums", "apgrozījums", "beigu atlikums"]
+        pattern = '|'.join(exclude_keywords)
+        # We check column 4 (Purpose) for these keywords
+        df_filtered = df_filtered[~df_filtered[4].astype(str).str.lower().str.contains(pattern, na=False)]
 
         def parse_partner_details(val):
             if not val: return "", "", "", ""
@@ -157,15 +165,12 @@ if uploaded_file:
         df_proc['Category'], df_proc['Division'], df_proc['Sub'] = zip(*results)
         df_proc['Commentary'] = ""
 
-        # PREVIEW REMOVED AS REQUESTED
-
         if st.button("📤 CREATE GOOGLE SHEET"):
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_proc.to_excel(writer, index=False, sheet_name='BankReport')
                 workbook, worksheet = writer.book, writer.sheets['BankReport']
                 
-                # Setup dropdowns
                 data_sheet = workbook.add_worksheet('HiddenData')
                 for i, v in enumerate(CAT_OPTIONS): data_sheet.write(i, 0, v)
                 for i, v in enumerate(DIV_OPTIONS): data_sheet.write(i, 1, v)
@@ -173,7 +178,6 @@ if uploaded_file:
                 data_sheet.hide()
 
                 last_r = len(df_proc) + 1
-                # Dropdowns are now in Columns I, J, K because of the restored columns
                 worksheet.data_validation(f'I2:I{last_r}', {'validate': 'list', 'source': f'=HiddenData!$A$1:$A${len(CAT_OPTIONS)}'})
                 worksheet.data_validation(f'J2:J{last_r}', {'validate': 'list', 'source': f'=HiddenData!$B$1:$B${len(DIV_OPTIONS)}'})
                 worksheet.data_validation(f'K2:K{last_r}', {'validate': 'list', 'source': f'=HiddenData!$C$1:$C${len(SUB_OPTIONS)}'})
@@ -182,7 +186,6 @@ if uploaded_file:
                 for col_num, value in enumerate(df_proc.columns.values):
                     worksheet.write(0, col_num, value, header_fmt)
                 
-                # Column widths
                 worksheet.set_column('A:B', 12); worksheet.set_column('C:E', 25); worksheet.set_column('F:F', 40); worksheet.set_column('G:L', 18)
 
             output.seek(0)

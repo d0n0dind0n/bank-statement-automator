@@ -79,7 +79,7 @@ def process_row(row):
         cat = "Membership"
     elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "Kartes mēneša maksa"]):
         cat = "Operational Expenses"
-    if any(kw in full_text for kw in ["Lekcija", "risunok", "abonements", "urok"]): cat = "Services"
+    if any(kw in full_text for kw in ["Lekcija", "risunok", "abonements", "urok"," latv"]): cat = "Services"
      if any(kw in full_text for kw in ["Kvalitex", "rekins"]): cat = "Projects"
 
     # Division Logic

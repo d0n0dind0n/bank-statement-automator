@@ -82,7 +82,7 @@ def process_row(row):
     elif any(kw in full_text for kw in ["reimbursement", "psd", "erasmus"]):
         cat = "Erasmus+"
     
-    elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa", "klubu", "dalībmaksa"]) or name in membership_lookup:
+    elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa", "klubu", "dalībmaksa", "FY"]) or name in membership_lookup:
         cat = "Membership"
     
     elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "Pavadzīme", "Tele2", "KENG"]):

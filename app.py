@@ -85,7 +85,7 @@ def process_row(row):
     elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
     
-    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa"]):
+    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "Pavadzīme"]):
         cat = "Operational Expenses"
     
     elif any(kw in full_text for kw in ["kvalitex", "rekins"]):

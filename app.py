@@ -85,13 +85,13 @@ def process_row(row):
     elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
     
-    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "Pavadzīme"]):
+    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "Pavadzīme", "Tele2"]):
         cat = "Operational Expenses"
     
     elif any(kw in full_text for kw in ["kvalitex", "rekins"]):
         cat = "Projects"
     
-    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija", "akademiska"]):
+    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija", "akademiska", "meistarklase"]):
         cat = "Services"
 
     # --- Division Logic ---
@@ -115,12 +115,14 @@ def process_row(row):
         div = "Madeira"
     elif "podcast" in full_text or "300b" in full_text:
         div = 'Valsts Kase projekts ESC30 "Youth'
-    elif any(kw in full_text for kw in ["lekcija", "workshop", "brein", "kouch", "coach", "Lekcija"]):
+    elif any(kw in full_text for kw in ["lekcija", "workshop", "brein", "kouch", "coach", "Lekcija", "meistarklase"]):
         div = "Workshops"
     elif any(kw in full_text for kw in ["Gredzen"]):
         div = "Say it Ring"
     elif any(kw in full_text for kw in ["reimbursement"]):
         div = "Reimbursement"
+    elif any(kw in full_text for kw in ["Tele2"]):
+        div = "Office supplies"
 
     # --- Sub Logic ---
     if "brein" in full_text or "brain" in full_text:

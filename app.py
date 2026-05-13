@@ -70,7 +70,7 @@ def process_row(row):
     full_text = f"{purpose} {name}"
     
     # Start with a fallback default
-    cat, div, sub = "Services", "YF Main", "" 
+    cat, div, sub = "", "YF Main", "" 
 
     # --- Category Logic (ORDER MATTERS HERE) ---
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]):

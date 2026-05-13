@@ -74,7 +74,7 @@ def process_row(row):
     # Category Logic
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]): cat = "Donations"
     if any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1"]): cat = "Salaries"
-    if any(kw in full_text for kw in ["reimbursement", "PSD2", "erasmus"]): cat = "Erasmus+"
+    if any(kw in full_text for kw in ["reimbursement", "PSD", "erasmus"]): cat = "Erasmus+"
     if any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
     elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "Kartes mēneša maksa"]):

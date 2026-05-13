@@ -93,6 +93,9 @@ def process_row(row):
     
     elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija", "akademiska", "meistarklase"]):
         cat = "Services"
+    elif any(kw in full_text for kw in ["ukraiņu"]):
+        cat = "Help Ukraine"
+    
 
     # --- Division Logic ---
     if name in membership_lookup:

@@ -85,7 +85,7 @@ def process_row(row):
     elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
     
-    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "Pavadzīme", "Tele2"]):
+    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "Pavadzīme", "Tele2", "KENG"]):
         cat = "Operational Expenses"
     
     elif any(kw in full_text for kw in ["kvalitex", "rekins"]):
@@ -126,7 +126,9 @@ def process_row(row):
         div = "Reimbursement"
     elif any(kw in full_text for kw in ["Tele2"]):
         div = "Office supplies"
-
+    elif any(kw in full_text for kw in ["KENG"]):
+        div = "Office Rent"
+        
     # --- Sub Logic ---
     if "brein" in full_text or "brain" in full_text:
         sub = "Brainring"

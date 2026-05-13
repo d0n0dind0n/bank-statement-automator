@@ -69,80 +69,75 @@ def process_row(row):
     name = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose} {name}"
     
-    # Start with a fallback default
+    # Noklusējuma vērtības
     cat, div, sub = "", "YF Main", "" 
 
-    # --- Category Logic (ORDER MATTERS HERE) ---
+    # --- Kategoriju loģika (SVARĪGA SECĪBA) ---
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]):
         cat = "Donations"
     
-    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1", "NVA", "Ligums NVA", "4.3.3.2"]):
+    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1", "nva", "4.3.3.2"]):
         cat = "Salaries"
     
-    elif any(kw in full_text for kw in ["reimbursement", "psd", "erasmus"]):
+    elif any(kw in full_text for kw in ["reimbursement", "travel", "psd", "erasmus", "booking"]):
         cat = "Erasmus+"
     
-    elif any(kw in full_text for kw in ["biedru nauda", "biedru naudu", "dalības", "dalibmaksa", "klubu", "yf", "fy", "biedru"]) or name in membership_lookup:
+    elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa", "klubu", "yf", "fy", "biedru"]) or name in membership_lookup:
         cat = "Membership"
     
-    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "Pavadzīme", "tele2", "KENG", "PIRKUMS"]):
+    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "pavadzīme", "tele2", "keng", "pirkums"]):
         cat = "Operational Expenses"
     
     elif any(kw in full_text for kw in ["kvalitex", "rekins"]):
         cat = "Projects"
     
-    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija", "akademiska", "meistarklase", "Vācu", "Vacu"]):
+    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "akademiska", "meistarklase", "vācu", "vacu", "angļu", "english", "gredzen", "sarunvaloda", "kino"]):
         cat = "Services"
-    elif any(kw in full_text for kw in ["ukraiņu"]):
+        
+    elif "ukraiņu" in full_text:
         cat = "Help Ukraine"
-    
 
-    # --- Division Logic ---
+    # --- Divīziju (Division) loģika ---
     if name in membership_lookup:
         div = membership_lookup[name]
     elif any(kw in full_text for kw in ["līguma", "8.3-8.1", "nva"]):
         div = "NVA / ESF"
     elif "bolt" in full_text or "citybee" in full_text:
         div = "YF logistics"
-    elif "internetbank" in full_text:
-        div = "Internetbank"
-    elif "komisija" in full_text or "kartes mēneša maksa" in full_text:
-        div = "Comission"
-    elif "latv" in full_text:
-        div = "Latvian language"
     elif "angļu" in full_text or "english" in full_text:
         div = "English language"
+    elif any(kw in full_text for kw in ["vācu", "vacu"]):
+        div = "German"
+    elif "latv" in full_text:
+        div = "Latvian language"
     elif any(kw in full_text for kw in ["risunok", "gleznie", "akad", "akademiska"]):
         div = "Academic drawing"
-    elif "madeira" in full_text:
-        div = "Madeira"
-    elif "podcast" in full_text or "300b" in full_text:
-        div = 'Valsts Kase projekts ESC30 "Youth'
-    elif any(kw in full_text for kw in ["lekcija", "workshop", "brein", "kouch", "coach", "Lekcija", "meistarklase"]):
-        div = "Workshops"
-    elif any(kw in full_text for kw in ["Gredzen"]):
+    elif "gredzen" in full_text:
         div = "Say it Ring"
-    elif any(kw in full_text for kw in ["reimbursement"]):
+    elif "reimbursement" in full_text or "travel" in full_text:
         div = "Reimbursement"
-    elif any(kw in full_text for kw in ["Tele2"]):
+    elif "tele2" in full_text:
         div = "Office supplies"
-    elif any(kw in full_text for kw in ["KENG"]):
+    elif "keng" in full_text:
         div = "Office Rent"
-    elif any(kw in full_text for kw in [ "Vācu", "Vacu"]):
-        div = "German"
-        
-    # --- Sub Logic ---
-    if "brein" in full_text or "brain" in full_text:
+    elif any(kw in full_text for kw in ["lekcija", "workshop", "brein", "kouch", "coach", "meistarklase", "kino"]):
+        div = "Workshops"
+    elif "yf" in full_text:
+        div = "YF Youth"
+
+    # --- Apakšdivīziju (Sub) loģika ---
+    if any(kw in full_text for kw in ["brein", "brain"]):
         sub = "Brainring"
-    elif "kouch" in full_text or "coach" in full_text:
+    elif any(kw in full_text for kw in ["kouch", "coach"]):
         sub = "Coaching"
-    elif "reimbursement" in full_text:
-        sub = "Reimbursement"
+    elif "kino" in full_text:
+        sub = "Cinema production"
+    elif "sarunvaloda" in full_text:
+        sub = "Sarunvalodas"
     elif "nometne" in full_text or "camp" in full_text:
         sub = "Winter camp"
-    
-    if "sarunvalodas" in full_text:
-        sub = "Sarunvalodas"
+    elif "reimbursement" in full_text or "travel" in full_text:
+        sub = "Reimbursement"
 
     return cat, div, sub
 

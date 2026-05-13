@@ -69,16 +69,18 @@ def process_row(row):
     name = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose} {name}"
     
-    cat, div, sub = "", "YF Main", "" # Set default to Services
+    cat, div, sub = "", "YF Main", "" # Set default 
 
     # Category Logic
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]): cat = "Donations"
     elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1"]): cat = "Salaries"
-    elif "erasmus" in full_text or "reimbursement" in full_text: cat = "Erasmus+"
-    elif any(kw in full_text for kw in ["biedru nauda", "dalības maksa", "dalibmaksa"]) or name in membership_lookup:
+    elif "erasmus" in full_text or "reimbursement" or "PSD2" in full_text: cat = "Erasmus+"
+    elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
-    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo"]):
+    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "Kartes mēneša maksa"]):
         cat = "Operational Expenses"
+    if any(kw in full_text for kw in ["Lekcija", "risunok"]): cat = "Services"
+     if any(kw in full_text for kw in ["Kvalitex"]): cat = "Projects"
 
     # Division Logic
     if name in membership_lookup:

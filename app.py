@@ -91,7 +91,7 @@ def process_row(row):
     elif any(kw in full_text for kw in ["kvalitex", "rekins"]):
         cat = "Projects"
     
-    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija"]):
+    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija", "akademiska"]):
         cat = "Services"
 
     # --- Division Logic ---
@@ -109,7 +109,7 @@ def process_row(row):
         div = "Latvian language"
     elif "angļu" in full_text or "english" in full_text:
         div = "English language"
-    elif any(kw in full_text for kw in ["risunok", "gleznie", "akad"]):
+    elif any(kw in full_text for kw in ["risunok", "gleznie", "akad", "akademiska"]):
         div = "Academic drawing"
     elif "madeira" in full_text:
         div = "Madeira"

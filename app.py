@@ -69,39 +69,67 @@ def process_row(row):
     name = str(row['Name Surname']).lower().strip()
     full_text = f"{purpose} {name}"
     
-    cat, div, sub = "", "YF Main", "" # Set default 
+    # Start with a fallback default
+    cat, div, sub = "Services", "YF Main", "" 
 
-    # Category Logic
-    if any(kw in full_text for kw in ["ziedojum", "ziedot"]): cat = "Donations"
-    if any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1"]): cat = "Salaries"
-    if any(kw in full_text for kw in ["reimbursement", "PSD", "erasmus"]): cat = "Erasmus+"
-    if any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa"]) or name in membership_lookup:
+    # --- Category Logic (ORDER MATTERS HERE) ---
+    if any(kw in full_text for kw in ["ziedojum", "ziedot"]):
+        cat = "Donations"
+    
+    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1"]):
+        cat = "Salaries"
+    
+    elif any(kw in full_text for kw in ["reimbursement", "psd", "erasmus"]):
+        cat = "Erasmus+"
+    
+    elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa"]) or name in membership_lookup:
         cat = "Membership"
-    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "Kartes mēneša maksa"]):
+    
+    elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa"]):
         cat = "Operational Expenses"
-    if any(kw in full_text for kw in ["Lekcija", "risunok", "abonements", "urok"," latv"]): cat = "Services"
-    if any(kw in full_text for kw in ["Kvalitex", "rekins"]): cat = "Projects"
+    
+    elif any(kw in full_text for kw in ["kvalitex", "rekins"]):
+        cat = "Projects"
+    
+    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv"]):
+        cat = "Services"
 
-    # Division Logic
+    # --- Division Logic ---
     if name in membership_lookup:
         div = membership_lookup[name]
-    elif any(kw in full_text for kw in ["līguma", "8.3-8.1", "nva"]): div = "NVA / ESF"
-    elif "bolt" in full_text or "citybee" in full_text: div = "YF logistics"
-    elif "internetbank" in full_text: div = "Internetbank"
-    elif "komisija" in full_text or "kartes mēneša maksa" in full_text: div = "Comission"
-    elif "latv" in full_text: div = "Latvian language"
-    elif "angļu" in full_text or "english" in full_text: div = "English language"
-    elif any(kw in full_text for kw in ["risunok", "gleznie", "akad"]): div = "Academic drawing"
-    elif "madeira" in full_text: div = "Madeira"
-    elif "podcast" in full_text or "300b" in full_text: div = 'Valsts Kase projekts ESC30 "Youth'
-    elif any(kw in full_text for kw in ["lekcija", "workshop", "brein", "kouch", "coach"]): div = "Workshops"
+    elif any(kw in full_text for kw in ["līguma", "8.3-8.1", "nva"]):
+        div = "NVA / ESF"
+    elif "bolt" in full_text or "citybee" in full_text:
+        div = "YF logistics"
+    elif "internetbank" in full_text:
+        div = "Internetbank"
+    elif "komisija" in full_text or "kartes mēneša maksa" in full_text:
+        div = "Comission"
+    elif "latv" in full_text:
+        div = "Latvian language"
+    elif "angļu" in full_text or "english" in full_text:
+        div = "English language"
+    elif any(kw in full_text for kw in ["risunok", "gleznie", "akad"]):
+        div = "Academic drawing"
+    elif "madeira" in full_text:
+        div = "Madeira"
+    elif "podcast" in full_text or "300b" in full_text:
+        div = 'Valsts Kase projekts ESC30 "Youth'
+    elif any(kw in full_text for kw in ["lekcija", "workshop", "brein", "kouch", "coach"]):
+        div = "Workshops"
 
-    # Sub Logic
-    if "brein" in full_text or "brain" in full_text: sub = "Brainring"
-    elif "kouch" in full_text or "coach" in full_text: sub = "Coaching"
-    elif "reimbursement" in full_text: sub = "Reimbursement"
-    elif "nometne" in full_text or "camp" in full_text: sub = "Winter camp"
-    if "sarunvalodas" in full_text: sub = "Sarunvalodas"
+    # --- Sub Logic ---
+    if "brein" in full_text or "brain" in full_text:
+        sub = "Brainring"
+    elif "kouch" in full_text or "coach" in full_text:
+        sub = "Coaching"
+    elif "reimbursement" in full_text:
+        sub = "Reimbursement"
+    elif "nometne" in full_text or "camp" in full_text:
+        sub = "Winter camp"
+    
+    if "sarunvalodas" in full_text:
+        sub = "Sarunvalodas"
 
     return cat, div, sub
 

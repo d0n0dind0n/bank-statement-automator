@@ -76,7 +76,7 @@ def process_row(row):
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]):
         cat = "Donations"
     
-    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1", " NVA ", "Ligums NVA "]):
+    elif any(kw in full_text for kw in ["alga", "stipendija", "autoratl", "līguma", "8.3-8.1", "NVA", "Ligums NVA", "4.3.3.2"]):
         cat = "Salaries"
     
     elif any(kw in full_text for kw in ["reimbursement", "psd", "erasmus"]):

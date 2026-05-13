@@ -91,7 +91,7 @@ def process_row(row):
     elif any(kw in full_text for kw in ["kvalitex", "rekins"]):
         cat = "Projects"
     
-    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija", "akademiska", "meistarklase"]):
+    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "Lekcija", "akademiska", "meistarklase", "Vācu", "Vacu"]):
         cat = "Services"
     elif any(kw in full_text for kw in ["ukraiņu"]):
         cat = "Help Ukraine"
@@ -128,6 +128,8 @@ def process_row(row):
         div = "Office supplies"
     elif any(kw in full_text for kw in ["KENG"]):
         div = "Office Rent"
+    elif any(kw in full_text for kw in [ "Vācu", "Vacu"]):
+        div = "German"
         
     # --- Sub Logic ---
     if "brein" in full_text or "brain" in full_text:

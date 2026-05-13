@@ -117,6 +117,8 @@ def process_row(row):
         div = 'Valsts Kase projekts ESC30 "Youth'
     elif any(kw in full_text for kw in ["lekcija", "workshop", "brein", "kouch", "coach", "Lekcija"]):
         div = "Workshops"
+    elif any(kw in full_text for kw in ["Gredzen"]):
+        div = "Say it Ring"
 
     # --- Sub Logic ---
     if "brein" in full_text or "brain" in full_text:

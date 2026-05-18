@@ -98,9 +98,7 @@ def process_row(row):
         cat = "Membership"
 
     # --- Divīziju (Division) loģika ---
-    if name in membership_lookup:
-        div = membership_lookup[name]
-    elif any(kw in full_text for kw in ["līguma", "8.3-8.1", "nva"]):
+    if any(kw in full_text for kw in ["līguma", "8.3-8.1", "nva"]):
         div = "NVA / ESF"
     elif "bolt" in full_text or "citybee" in full_text:
         div = "YF logistics"
@@ -126,6 +124,8 @@ def process_row(row):
         div = "YF Youth"
     elif "komisija" in full_text:
         div = "Commission"
+    elif name in membership_lookup:
+        div = membership_lookup[name]
 
     # --- Apakšdivīziju (Sub) loģika ---
     if any(kw in full_text for kw in ["brein", "brain"]):

@@ -60,7 +60,7 @@ if st.session_state.auth_creds is None:
 
 # --- 4. DROPDOWN OPTIONS ---
 CAT_OPTIONS = ["Donations", "Erasmus+", "Help Ukraine", "Membership", "Operational Expenses", "Projects", "Salaries", "Services", "YE Travel"]
-DIV_OPTIONS = ["Academic drawing", "BNI Artmen", "Comission", "E+ YE Voices in action", "English language", "Erasmus", "Erasmus Adult", "Forever Young", "German", "Internetbank", "JEF Europe", "Latvian language", "Madeira", "NVA / ESF", "Office Rent", "Office supplies", "Reimbursement", "Say it Ring", "Sense (design)", "Taxes", 'Valsts Kase projekts ESC30 "Youth', "Workshops", "YE GREEN REALITIES", "YF kids", "YF logistics", "YF Main", "YF Teens", "YF Youth"]
+DIV_OPTIONS = ["Academic drawing", "BNI Artmen", "Commission", "E+ YE Voices in action", "English language", "Erasmus", "Erasmus Adult", "Forever Young", "German", "Internetbank", "JEF Europe", "Latvian language", "Madeira", "NVA / ESF", "Office Rent", "Office supplies", "Reimbursement", "Say it Ring", "Sense (design)", "Taxes", 'Valsts Kase projekts ESC30 "Youth', "Workshops", "YE GREEN REALITIES", "YF kids", "YF logistics", "YF Main", "YF Teens", "YF Youth"]
 SUB_OPTIONS = ["APV GREEN REALITIES", "Brainring", "Christmas party", "Cinema production", "Coaching", "Creative jam event", "Italy?", "Reimbursement", "Sarunvalodas", "Speed Friending", "Umniy dom", "Winter camp"]
 
 # --- 5. FILTERING LOGIC ---
@@ -70,7 +70,7 @@ def process_row(row):
     full_text = f"{purpose} {name}"
     
     # Noklusējuma vērtības
-    cat, div, sub = "", "YF Main", "" 
+    cat, div, sub = "", "", "" 
 
     # --- Kategoriju loģika (SVARĪGA SECĪBA) ---
     if any(kw in full_text for kw in ["ziedojum", "ziedot"]):
@@ -91,7 +91,7 @@ def process_row(row):
     elif any(kw in full_text for kw in ["kvalitex", "rekins"]):
         cat = "Projects"
     
-    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "akademiska", "meistarklase", "vācu", "vacu", "angļu", "english", "gredzen", "sarunvaloda", "kino"]):
+    elif any(kw in full_text for kw in ["lekcija", "risunok", "abonements", "urok", "latv", "akademiska", "meistarklase", "vācu", "vacu", "angļu", "english", "gredzen", "sarunvaloda", "kino", "akademiska gleznieciba", "Akademicheskiy risunok"]):
         cat = "Services"
         
     elif "ukraiņu" in full_text:
@@ -110,7 +110,7 @@ def process_row(row):
         div = "German"
     elif "latv" in full_text:
         div = "Latvian language"
-    elif any(kw in full_text for kw in ["risunok", "gleznie", "akad", "akademiska"]):
+    elif any(kw in full_text for kw in ["risunok", "gleznie", "akad", "akademiska", "akademiska gleznieciba", "Akademicheskiy risunok"]):
         div = "Academic drawing"
     elif "gredzen" in full_text:
         div = "Say it Ring"
@@ -124,6 +124,8 @@ def process_row(row):
         div = "Workshops"
     elif "yf" in full_text:
         div = "YF Youth"
+     elif "komisija" in full_text:
+        div = "Commission"
 
     # --- Apakšdivīziju (Sub) loģika ---
     if any(kw in full_text for kw in ["brein", "brain"]):

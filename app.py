@@ -82,9 +82,6 @@ def process_row(row):
     elif any(kw in full_text for kw in ["reimbursement", "travel", "psd", "erasmus", "booking"]):
         cat = "Erasmus+"
     
-    elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa", "klubu", "yf", "fy", "biedru"]) or name in membership_lookup:
-        cat = "Membership"
-    
     elif any(kw in full_text for kw in ["bolt", "citybee", "noma", "komisija", "internetbank", "ikea", "depo", "kartes mēneša maksa", "pavadzīme", "tele2", "keng", "pirkums"]):
         cat = "Operational Expenses"
     
@@ -96,6 +93,9 @@ def process_row(row):
         
     elif "ukraiņu" in full_text:
         cat = "Help Ukraine"
+
+    elif any(kw in full_text for kw in ["biedru nauda", "dalības", "dalibmaksa", "klubu", "yf", "fy", "biedru"]) or name in membership_lookup:
+        cat = "Membership"
 
     # --- Divīziju (Division) loģika ---
     if name in membership_lookup:

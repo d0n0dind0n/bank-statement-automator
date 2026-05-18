@@ -124,7 +124,7 @@ def process_row(row):
         div = "Workshops"
     elif "yf" in full_text:
         div = "YF Youth"
-     elif "komisija" in full_text:
+    elif "komisija" in full_text:
         div = "Commission"
 
     # --- Apakšdivīziju (Sub) loģika ---
